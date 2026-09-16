@@ -36,7 +36,7 @@ import { diffEngine } from "@/services/diff/DiffEngine";
 import { formatEngine } from "@/services/word/FormatEngine";
 import { insertEngine, paragraphsToOoxml } from "@/services/word/InsertEngine";
 import { latexToOoxml } from "@/services/word/FormulaOoxml";
-import { patchEngine } from "@/services/word/PatchEngine";
+import { patchEngine, type PatchOutcome } from "@/services/word/PatchEngine";
 import { revisionService } from "@/services/word/RevisionService";
 import { WordService } from "@/services/word/WordService";
 import { editControlTag, nextTransactionId } from "@/utils/id";
@@ -50,6 +50,32 @@ import { useDocumentStore } from "./document";
 export type ApplyEditResult =
   | { ok: true }
   | { ok: false; code: string; message: string };
+
+type InsertEngineCompat = {
+  applyFormulaInsertPlan?: (plan: FormulaInsertPlan) => Promise<PatchOutcome>;
+  commitFormulaInsertPlan?: (plan: FormulaInsertPlan) => Promise<PatchOutcome>;
+  applyParagraphInsertPlan?: (plan: ParagraphInsertPlan) => Promise<PatchOutcome>;
+  commitParagraphInsertPlan?: (plan: ParagraphInsertPlan) => Promise<PatchOutcome>;
+};
+
+/** 新旧前端模块在 Vite HMR / Office 缓存窗口内共存时兼容两代方法名。 */
+function applyFormulaInsertCompat(plan: FormulaInsertPlan): Promise<PatchOutcome> {
+  const engine = insertEngine as unknown as InsertEngineCompat;
+  const apply = engine.applyFormulaInsertPlan ?? engine.commitFormulaInsertPlan;
+  if (!apply) {
+    throw new CopilotError("FRONTEND_VERSION_MISMATCH", "InsertEngine 公式插入方法不可用");
+  }
+  return apply.call(engine, plan);
+}
+
+function applyParagraphInsertCompat(plan: ParagraphInsertPlan): Promise<PatchOutcome> {
+  const engine = insertEngine as unknown as InsertEngineCompat;
+  const apply = engine.applyParagraphInsertPlan ?? engine.commitParagraphInsertPlan;
+  if (!apply) {
+    throw new CopilotError("FRONTEND_VERSION_MISMATCH", "InsertEngine 段落插入方法不可用");
+  }
+  return apply.call(engine, plan);
+}
 
 export const useEditStore = defineStore("edits", () => {
   /** id → 事务（插入顺序即 order） */
@@ -488,7 +514,7 @@ export const useEditStore = defineStore("edits", () => {
     registerTransaction(tx);
     chatStore.addEditMessage(tx.id);
     try {
-      const outcome = await insertEngine.applyFormulaInsertPlan(plan);
+      const outcome = await applyFormulaInsertCompat(plan);
       tx.contentControlTag = outcome.contentControlTag;
       tx.changeCount = outcome.changeCount ?? 0;
       return { ok: true };
@@ -561,7 +587,7 @@ export const useEditStore = defineStore("edits", () => {
     registerTransaction(tx);
     chatStore.addEditMessage(tx.id);
     try {
-      const outcome = await insertEngine.applyParagraphInsertPlan(plan);
+      const outcome = await applyParagraphInsertCompat(plan);
       tx.contentControlTag = outcome.contentControlTag;
       tx.changeCount = outcome.changeCount ?? 0;
       return { ok: true };

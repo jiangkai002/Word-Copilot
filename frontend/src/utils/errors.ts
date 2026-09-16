@@ -17,6 +17,7 @@ export type ErrorCode =
   | "REVISION_ERROR"
   | "FORMULA_INVALID"
   | "FORMULA_CONVERSION_ERROR"
+  | "FRONTEND_VERSION_MISMATCH"
   | "NETWORK_ERROR"
   | "ABORTED"
   | "PENDING_EDIT_CONFLICT"
@@ -36,6 +37,7 @@ const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   REVISION_ERROR: "以修订方式写入文档失败。",
   FORMULA_INVALID: "LaTeX 公式语法无法解析，未写入文档。",
   FORMULA_CONVERSION_ERROR: "公式无法转换为 Word 格式，未写入文档。",
+  FRONTEND_VERSION_MISMATCH: "任务窗格已加载的前端版本不一致，请重新加载任务窗格后重试。",
   NETWORK_ERROR: "无法连接后端服务，请确认 FastAPI 已启动。",
   ABORTED: "已停止生成。",
   PENDING_EDIT_CONFLICT: "当前内容已有一个尚未处理的 AI 修改，请先接受或拒绝现有修改。",
@@ -70,7 +72,14 @@ export function toCopilotError(err: unknown): CopilotError {
     if (typeof officeCode === "string" && officeCode.length > 0) {
       return new CopilotError("WORD_API_ERROR", `${officeCode}: ${err.message}`);
     }
-    if (err.name === "TypeError" || /fetch|network/i.test(err.message)) {
+    // Vite 热更新可能只替换调用方，保留旧 service 单例。这类 TypeError
+    // 与后端连接无关，应该明确提示用户重新加载任务窗格。
+    if (/\bis not a function\b|cannot read properties of (?:undefined|null)/i.test(err.message)) {
+      return new CopilotError("FRONTEND_VERSION_MISMATCH", err.message);
+    }
+    // 浏览器 fetch 失败通常也是 TypeError，因此不能把所有 TypeError 都
+    // 归类成网络错误，只匹配真实的网络失败措辞。
+    if (/failed to fetch|fetch failed|network(?:error| request)?|load failed/i.test(err.message)) {
       return new CopilotError("NETWORK_ERROR", err.message);
     }
     return new CopilotError("UNKNOWN", err.message);

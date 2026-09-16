@@ -165,6 +165,19 @@ export class InsertEngine {
     return this.applyTrackedOoxml(plan.anchor, plan.contentControlTag, ooxml, "段落");
   }
 
+  /**
+   * 热更新兼容别名：旧版 Store 仍可能持有 commit* 调用，新旧模块在一次
+   * 完整任务窗格刷新前允许共存。后续正式版本仍保留，避免加载项缓存导致
+   * 已打开的任务窗格因方法改名中断。
+   */
+  async commitFormulaInsertPlan(plan: FormulaInsertPlan): Promise<PatchOutcome> {
+    return this.applyFormulaInsertPlan(plan);
+  }
+
+  async commitParagraphInsertPlan(plan: ParagraphInsertPlan): Promise<PatchOutcome> {
+    return this.applyParagraphInsertPlan(plan);
+  }
+
   /** Flat OPC 内容统一进入 TrackAll + Content Control 事务管线。 */
   private async applyTrackedOoxml(
     anchor: RangeLocator | null,

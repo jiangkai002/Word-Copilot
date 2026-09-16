@@ -15,6 +15,8 @@ vi.mock("@/services/word/InsertEngine", async (importOriginal) => {
       applyTableInsertPlan: vi.fn(),
       applyFormulaInsertPlan: vi.fn(),
       applyParagraphInsertPlan: vi.fn(),
+      commitFormulaInsertPlan: vi.fn(),
+      commitParagraphInsertPlan: vi.fn(),
     },
   };
 });
@@ -51,6 +53,36 @@ describe("公式与段落修订事务", () => {
     expect(insertEngine.applyFormulaInsertPlan).toHaveBeenCalledOnce();
     expect(store.pendingList).toHaveLength(1);
     expect(store.pendingList[0].changeCount).toBe(1);
+  });
+
+  it("热更新后新 Store 可回退调用旧版公式插入方法", async () => {
+    const engine = insertEngine as unknown as {
+      applyFormulaInsertPlan?: typeof insertEngine.applyFormulaInsertPlan;
+      commitFormulaInsertPlan: typeof insertEngine.commitFormulaInsertPlan;
+    };
+    const currentApply = engine.applyFormulaInsertPlan;
+    engine.applyFormulaInsertPlan = undefined;
+    vi.mocked(engine.commitFormulaInsertPlan).mockResolvedValue(outcome);
+
+    try {
+      const store = useEditStore();
+      const result = await store.applyProposal(
+        "插入公式",
+        {
+          kind: "insert-formula",
+          anchor_paragraph_id: null,
+          summary: "插入质能方程",
+          latex: "E=mc^2",
+          display: true,
+        },
+        [],
+      );
+
+      expect(result).toEqual({ ok: true });
+      expect(engine.commitFormulaInsertPlan).toHaveBeenCalledOnce();
+    } finally {
+      engine.applyFormulaInsertPlan = currentApply;
+    }
   });
 
   it.each([
