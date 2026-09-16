@@ -71,5 +71,5 @@ export const TRANSACTION_STATUS_LABELS: Record<EditTransactionStatus, string> = 
   pending: "待处理",
   accepted: "已接受",
   rejected: "已拒绝",
-  invalid: "已在 Word 中处理",
+  invalid: "写入失败",
 };

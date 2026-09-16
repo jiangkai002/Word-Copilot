@@ -4,10 +4,13 @@
  * 插入位置：锚点段落之后，或文档末尾（plan.anchor = null —— 空文档 / 用户
  * 未指明位置时的默认，走 Body.insert*("End")，无需锚点定位与哈希校验）。
  *
- * 表格与文本编辑的结构差异：没有既有文本可包裹 —— 采用**先插入后包裹**：
+ * 表格与文本编辑的结构差异：没有既有文本可包裹。表格采用先插入后包裹；
+ * 公式 / 段落采用**先建容器后替换内容**：
  *   定位锚点（若有）→ 锚点哈希校验（§15，锚点变 → 插入位置不可信，不应用）→
- *   保存修订模式 → trackAll → 单批插入（Range / Body 的 insertTable / insertOoxml）→
- *   包 Content Control（tag = word_ai_edit:{uuid}，§24 事务边界）→ 一次 sync。
+ *   关闭修订并插入临时占位段落 → 包 Content Control（事务边界）→ trackAll →
+ *   在 Content Control 内 Replace 为目标 OOXML。
+ * 不能对已经插入的多段修订 Range 再调用 insertContentControl：Windows Word 会对
+ * 含段落标记的已修订范围抛 GeneralException，且保留已插入内容，形成孤儿修订。
  *
  * 拒绝语义（RevisionService 按 kind 分派）：插入类拒绝 = rejectAll +
  * delete(false)（连壳带内容删除 —— 兜底清除未被 Word 跟踪的插入）。
@@ -189,14 +192,16 @@ export class InsertEngine {
       const anchorRange = await this.locateAnchor(ctx, anchor);
       const previousMode = await WordService.readChangeTrackingMode(ctx);
       let control: Word.ContentControl | null = null;
-      let inserted: Word.Range | null = null;
+      let placeholder: Word.Paragraph | null = null;
       try {
-        ctx.document.changeTrackingMode = Word.ChangeTrackingMode.trackAll;
+        // 先在关闭修订时创建稳定事务边界。占位内容只在 CC 内短暂存在；
+        // 接受时会被目标 OOXML 取代，拒绝时随 CC 一并删除。
+        ctx.document.changeTrackingMode = Word.ChangeTrackingMode.off;
         await ctx.sync();
-        inserted = anchorRange
-          ? anchorRange.insertOoxml(ooxml, "After")
-          : ctx.document.body.insertOoxml(ooxml, "End");
-        control = inserted.insertContentControl();
+        placeholder = anchorRange
+          ? anchorRange.insertParagraph("\u200B", "After")
+          : ctx.document.body.insertParagraph("\u200B", "End");
+        control = placeholder.getRange().insertContentControl();
         control.tag = contentControlTag;
         control.title = "Word AI";
         try {
@@ -204,6 +209,11 @@ export class InsertEngine {
         } catch {
           // 个别宿主不支持 hidden 外观时忽略。
         }
+        await ctx.sync();
+
+        ctx.document.changeTrackingMode = Word.ChangeTrackingMode.trackAll;
+        await ctx.sync();
+        control.insertOoxml(ooxml, "Replace");
         await ctx.sync();
         return {
           contentControlTag,
@@ -213,13 +223,23 @@ export class InsertEngine {
         };
       } catch (err) {
         try {
+          // 清理本身不能再产生修订，否则会留下新的待审删除记录。
+          ctx.document.changeTrackingMode = Word.ChangeTrackingMode.off;
           if (control) {
-            const changes = control.getTrackedChanges();
-            changes.rejectAll();
-            control.delete(false);
-            await ctx.sync();
-          } else if (inserted) {
-            inserted.delete();
+            try {
+              control.delete(false);
+              await ctx.sync();
+            } catch (controlCleanupErr) {
+              // 同一批次里“占位段落插入成功、包 CC 失败”时，control 只是
+              // 无效代理对象；改删底层占位段落，覆盖 Office 的部分提交语义。
+              logger.warn(`${label}事务容器未创建，改为清理占位段落：`, controlCleanupErr);
+              if (placeholder) {
+                placeholder.delete();
+                await ctx.sync();
+              }
+            }
+          } else if (placeholder) {
+            placeholder.delete();
             await ctx.sync();
           }
         } catch (cleanupErr) {

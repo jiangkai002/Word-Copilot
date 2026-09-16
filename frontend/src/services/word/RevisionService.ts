@@ -135,17 +135,22 @@ export class RevisionService {
           return "rejected";
         }
         // insert-*：未跟踪的插入 —— 连壳带内容删除
-        control.delete(false);
-        await ctx.sync();
+        await this.deleteInsertedControlWithoutTracking(ctx, control);
         return "rejected";
       }
 
       try {
         const changes = control.getTrackedChanges();
         changes.rejectAll();
-        // insert 拒绝后 CC 已空，delete(false) 兜底清除残壳 / 未跟踪内容
-        control.delete(ref.kind.startsWith("insert-") ? false : true);
-        await ctx.sync();
+        if (ref.kind.startsWith("insert-")) {
+          // 先提交拒绝，让预建容器内的零宽占位段落恢复；随后关闭修订，
+          // 连同 CC 删除占位段落，避免清理动作自身再生成一条删除修订。
+          await ctx.sync();
+          await this.deleteInsertedControlWithoutTracking(ctx, control);
+        } else {
+          control.delete(true);
+          await ctx.sync();
+        }
         return "rejected";
       } catch (err) {
         throw toCopilotError(err);
@@ -207,6 +212,23 @@ export class RevisionService {
   }
 
   // ------------------------------------------------------------------
+
+  private async deleteInsertedControlWithoutTracking(
+    ctx: Word.RequestContext,
+    control: Word.ContentControl,
+  ): Promise<void> {
+    const previousMode = await WordService.readChangeTrackingMode(ctx);
+    try {
+      ctx.document.changeTrackingMode = Word.ChangeTrackingMode.off;
+      control.delete(false);
+      await ctx.sync();
+    } finally {
+      if (previousMode !== null) {
+        ctx.document.changeTrackingMode = previousMode;
+        await ctx.sync();
+      }
+    }
+  }
 
   private async countChanges(
     ctx: Word.RequestContext,
