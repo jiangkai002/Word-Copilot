@@ -1,0 +1,24 @@
+# 依赖与构建产物
+node_modules/
+frontend/dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# 环境配置（含密钥，勿提交）
+backend/.env
+
+# Office Add-in 工具
+.office-addin-dev-certs/
+
+# 本地运行日志与公式兼容性调试产物
+*.log
+frontend/*.tmp.*
+frontend/com-test.tmp/
+
+# 编辑器
+.vscode/
+.idea/

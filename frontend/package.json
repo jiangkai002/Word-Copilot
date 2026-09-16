@@ -1,0 +1,38 @@
+{
+  "name": "word-ai-copilot-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Word AI Copilot - Word Task Pane Add-in (Vue 3 + TypeScript + Office.js)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "icons": "node scripts/generate-icons.mjs",
+    "dev-certs": "office-addin-dev-certs install",
+    "sideload": "office-addin-dev-settings register manifest.xml",
+    "sideload:word": "office-addin-dev-settings sideload manifest.xml -a Word",
+    "unsideload": "office-addin-dev-settings unregister manifest.xml"
+  },
+  "dependencies": {
+    "diff-match-patch": "^1.0.5",
+    "katex": "^0.18.7",
+    "mathml2omml": "^0.5.0",
+    "pinia": "^3.0.1",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@types/diff-match-patch": "^1.0.36",
+    "@types/node": "^22.15.0",
+    "@types/office-js": "^1.0.300",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "office-addin-dev-certs": "^3.0.0",
+    "office-addin-dev-settings": "^4.0.0",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^2.2.10"
+  }
+}
