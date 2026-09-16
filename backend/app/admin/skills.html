@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill 配置 · Word Copilot</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6fa;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #e2e7ef;
+      --brand: #3157d5;
+      --brand-dark: #2443aa;
+      --green: #16825d;
+      --red: #c43d4b;
+      --shadow: 0 16px 40px rgba(23, 32, 51, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 8% 0, #e8ecff 0, transparent 32%), var(--bg);
+      color: var(--ink);
+      font: 14px/1.55 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .shell { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 44px 0 72px; }
+    header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+    .eyebrow { color: var(--brand); font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { margin: 5px 0 5px; font-size: clamp(28px, 4vw, 42px); line-height: 1.14; letter-spacing: -.025em; }
+    .subtitle { margin: 0; color: var(--muted); font-size: 15px; }
+    .primary, .secondary, .danger, .icon-btn {
+      border: 1px solid transparent; border-radius: 10px; padding: 9px 14px; font-weight: 650;
+    }
+    .primary { color: #fff; background: var(--brand); box-shadow: 0 6px 16px rgba(49, 87, 213, .2); }
+    .primary:hover { background: var(--brand-dark); }
+    .secondary, .icon-btn { background: #fff; border-color: var(--line); color: var(--ink); }
+    .secondary:hover, .icon-btn:hover { border-color: #b8c1d2; }
+    .danger { color: var(--red); background: #fff; border-color: #f0cbd0; }
+    .toolbar {
+      display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center;
+      padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.8);
+      box-shadow: var(--shadow); backdrop-filter: blur(8px); margin-bottom: 18px;
+    }
+    .search { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--ink); background: #fff; outline: none; }
+    .search:focus, input:focus, textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(49,87,213,.11); }
+    .stats { white-space: nowrap; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px; }
+    .card { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); padding: 19px; box-shadow: 0 6px 22px rgba(23,32,51,.045); }
+    .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .card h2 { font-size: 17px; line-height: 1.35; margin: 0 0 5px; }
+    .description { min-height: 43px; margin: 0 0 13px; color: var(--muted); }
+    .badge { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 99px; font-size: 12px; font-weight: 700; background: #edf8f4; color: var(--green); }
+    .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .badge.off { color: #7c8494; background: #f0f2f5; }
+    .trigger-row { display: flex; flex-wrap: wrap; gap: 6px; min-height: 26px; margin-bottom: 15px; }
+    .trigger { border-radius: 7px; background: #f0f3ff; color: #4055a5; padding: 3px 7px; font-size: 12px; }
+    .always { color: var(--muted); font-size: 12px; padding-top: 3px; }
+    .actions { display: flex; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+    .actions button { flex: 1; }
+    .empty { grid-column: 1 / -1; border: 1px dashed #bdc6d6; border-radius: 16px; padding: 54px 20px; text-align: center; color: var(--muted); background: rgba(255,255,255,.55); }
+    dialog { width: min(680px, calc(100% - 28px)); border: 0; border-radius: 18px; padding: 0; color: var(--ink); box-shadow: 0 28px 80px rgba(17,24,39,.25); }
+    dialog::backdrop { background: rgba(19, 26, 43, .45); backdrop-filter: blur(3px); }
+    .dialog-head { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--line); }
+    .dialog-head h2 { margin: 0; font-size: 20px; }
+    .icon-btn { width: 34px; height: 34px; padding: 0; font-size: 20px; line-height: 1; }
+    form { padding: 22px 24px 24px; }
+    .field { margin-bottom: 17px; }
+    label { display: block; margin-bottom: 6px; font-weight: 680; }
+    .hint { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; }
+    input[type="text"], textarea { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; outline: none; resize: vertical; }
+    #description { min-height: 76px; }
+    #instructions { min-height: 210px; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 13px; }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+    .switch-row label { margin: 0; }
+    input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--brand); }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
+    .toast { position: fixed; right: 22px; bottom: 22px; max-width: 420px; padding: 11px 14px; color: #fff; background: #26334d; border-radius: 10px; box-shadow: var(--shadow); opacity: 0; transform: translateY(8px); pointer-events: none; transition: .2s ease; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { background: var(--red); }
+    @media (max-width: 620px) { header { align-items: stretch; flex-direction: column; } header .primary { width: 100%; } .toolbar { grid-template-columns: 1fr; } .stats { white-space: normal; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <div class="eyebrow">Word Copilot Admin</div>
+        <h1>Skill 配置</h1>
+        <p class="subtitle">为聊天和 Agent 配置可复用的行为指令。</p>
+      </div>
+      <button class="primary" id="createButton">＋ 新建 Skill</button>
+    </header>
+
+    <section class="toolbar">
+      <input class="search" id="search" type="search" placeholder="搜索名称、说明或触发词…" autocomplete="off">
+      <div class="stats" id="stats">正在加载…</div>
+    </section>
+    <section class="grid" id="skillGrid" aria-live="polite"></section>
+  </main>
+
+  <dialog id="editor">
+    <div class="dialog-head">
+      <h2 id="dialogTitle">新建 Skill</h2>
+      <button class="icon-btn" id="closeButton" type="button" aria-label="关闭">×</button>
+    </div>
+    <form id="skillForm">
+      <input id="skillId" type="hidden">
+      <div class="field">
+        <label for="name">名称</label>
+        <input id="name" type="text" maxlength="80" required placeholder="例如：合同条款审查">
+      </div>
+      <div class="field">
+        <label for="description">说明</label>
+        <textarea id="description" maxlength="500" placeholder="这个 Skill 解决什么问题？"></textarea>
+      </div>
+      <div class="field">
+        <label for="triggers">触发词</label>
+        <input id="triggers" type="text" placeholder="合同, 条款, 法务审查">
+        <span class="hint">使用逗号分隔；留空表示所有请求都启用。</span>
+      </div>
+      <div class="field">
+        <label for="instructions">Skill 指令</label>
+        <textarea id="instructions" maxlength="12000" required placeholder="描述 AI 应遵循的步骤、规则和输出要求…"></textarea>
+      </div>
+      <div class="switch-row">
+        <label for="enabled">立即启用</label>
+        <input id="enabled" type="checkbox" checked>
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary" id="cancelButton" type="button">取消</button>
+        <button class="primary" id="saveButton" type="submit">保存 Skill</button>
+      </div>
+    </form>
+  </dialog>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const api = "/api/v1/skills";
+    let skills = [];
+    const grid = document.querySelector("#skillGrid");
+    const stats = document.querySelector("#stats");
+    const search = document.querySelector("#search");
+    const editor = document.querySelector("#editor");
+    const form = document.querySelector("#skillForm");
+    const toast = document.querySelector("#toast");
+
+    function notify(message, error = false) {
+      toast.textContent = message;
+      toast.className = `toast show${error ? " error" : ""}`;
+      clearTimeout(notify.timer);
+      notify.timer = setTimeout(() => toast.className = "toast", 2600);
+    }
+
+    async function request(url, options = {}) {
+      const response = await fetch(url, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      });
+      if (!response.ok) {
+        let message = `请求失败（${response.status}）`;
+        try { message = (await response.json()).error?.message || message; } catch {}
+        throw new Error(message);
+      }
+      return response.status === 204 ? null : response.json();
+    }
+
+    function make(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function render() {
+      const keyword = search.value.trim().toLocaleLowerCase();
+      const visible = skills.filter(skill => !keyword || [
+        skill.name, skill.description, ...(skill.trigger_phrases || [])
+      ].join(" ").toLocaleLowerCase().includes(keyword));
+      const enabledCount = skills.filter(skill => skill.enabled).length;
+      stats.textContent = `${skills.length} 个 Skill · ${enabledCount} 个已启用`;
+      grid.replaceChildren();
+      if (!visible.length) {
+        grid.append(make("div", "empty", skills.length ? "没有匹配的 Skill" : "还没有 Skill，点击右上角创建第一个。"));
+        return;
+      }
+      for (const skill of visible) {
+        const card = make("article", "card");
+        const head = make("div", "card-head");
+        const titleWrap = make("div");
+        titleWrap.append(make("h2", "", skill.name));
+        head.append(titleWrap, make("span", `badge${skill.enabled ? "" : " off"}`, skill.enabled ? "已启用" : "已停用"));
+        card.append(head, make("p", "description", skill.description || "暂无说明"));
+        const triggers = make("div", "trigger-row");
+        if (skill.trigger_phrases?.length) {
+          skill.trigger_phrases.forEach(value => triggers.append(make("span", "trigger", value)));
+        } else {
+          triggers.append(make("span", "always", "所有请求均会加载"));
+        }
+        const actions = make("div", "actions");
+        const toggle = make("button", "secondary", skill.enabled ? "停用" : "启用");
+        toggle.onclick = () => toggleSkill(skill);
+        const edit = make("button", "secondary", "编辑");
+        edit.onclick = () => openEditor(skill);
+        const remove = make("button", "danger", "删除");
+        remove.onclick = () => deleteSkill(skill);
+        actions.append(toggle, edit, remove);
+        card.append(triggers, actions);
+        grid.append(card);
+      }
+    }
+
+    async function loadSkills() {
+      try {
+        skills = await request(api);
+        render();
+      } catch (error) {
+        grid.replaceChildren(make("div", "empty", error.message));
+        stats.textContent = "加载失败";
+        notify(error.message, true);
+      }
+    }
+
+    function openEditor(skill = null) {
+      document.querySelector("#dialogTitle").textContent = skill ? "编辑 Skill" : "新建 Skill";
+      document.querySelector("#skillId").value = skill?.id || "";
+      document.querySelector("#name").value = skill?.name || "";
+      document.querySelector("#description").value = skill?.description || "";
+      document.querySelector("#triggers").value = skill?.trigger_phrases?.join(", ") || "";
+      document.querySelector("#instructions").value = skill?.instructions || "";
+      document.querySelector("#enabled").checked = skill?.enabled ?? true;
+      editor.showModal();
+      document.querySelector("#name").focus();
+    }
+
+    function payloadFromForm() {
+      return {
+        name: document.querySelector("#name").value,
+        description: document.querySelector("#description").value,
+        trigger_phrases: document.querySelector("#triggers").value.split(/[,，]/).map(v => v.trim()).filter(Boolean),
+        instructions: document.querySelector("#instructions").value,
+        enabled: document.querySelector("#enabled").checked,
+      };
+    }
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const id = document.querySelector("#skillId").value;
+      const save = document.querySelector("#saveButton");
+      save.disabled = true;
+      try {
+        await request(id ? `${api}/${id}` : api, {
+          method: id ? "PUT" : "POST",
+          body: JSON.stringify(payloadFromForm()),
+        });
+        editor.close();
+        notify(id ? "Skill 已更新" : "Skill 已创建");
+        await loadSkills();
+      } catch (error) {
+        notify(error.message, true);
+      } finally {
+        save.disabled = false;
+      }
+    });
+
+    async function toggleSkill(skill) {
+      try {
+        await request(`${api}/${skill.id}`, {
+          method: "PUT",
+          body: JSON.stringify({ ...skill, enabled: !skill.enabled }),
+        });
+        notify(skill.enabled ? "Skill 已停用" : "Skill 已启用");
+        await loadSkills();
+      } catch (error) { notify(error.message, true); }
+    }
+
+    async function deleteSkill(skill) {
+      if (!confirm(`确定删除「${skill.name}」吗？`)) return;
+      try {
+        await request(`${api}/${skill.id}`, { method: "DELETE" });
+        notify("Skill 已删除");
+        await loadSkills();
+      } catch (error) { notify(error.message, true); }
+    }
+
+    document.querySelector("#createButton").onclick = () => openEditor();
+    document.querySelector("#closeButton").onclick = () => editor.close();
+    document.querySelector("#cancelButton").onclick = () => editor.close();
+    search.addEventListener("input", render);
+    loadSkills();
+  </script>
+</body>
+</html>

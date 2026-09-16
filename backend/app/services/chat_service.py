@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator, Callable
 from ..llm.base import Usage
 from ..llm.factory import get_provider
 from ..models.chat import ChatStreamRequest
-from . import context_service, prompt_service
+from . import context_service, prompt_service, skill_service
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,9 @@ _FALLBACK_SYSTEM_PROMPT = (
 
 def build_messages(request: ChatStreamRequest) -> list[dict[str, str]]:
     system_prompt = prompt_service.load_prompt("chat.md") or _FALLBACK_SYSTEM_PROMPT
+    skill_prompt = skill_service.render_skill_prompt(request.message)
+    if skill_prompt:
+        system_prompt += f"\n\n{skill_prompt}"
     messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]
     for entry in request.history[-10:]:
         messages.append({"role": entry.role, "content": entry.content})

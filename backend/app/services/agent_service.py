@@ -40,7 +40,7 @@ from ..models.agent import (
     ProposalEvent,
     TableProposalEvent,
 )
-from . import prompt_service
+from . import prompt_service, skill_service
 
 logger = logging.getLogger(__name__)
 
@@ -528,6 +528,9 @@ async def run_agent_stream(request: AgentStreamRequest) -> AsyncIterator[AgentEv
     Agent, tool, OpenAIChatCompletionClient = _load_framework()
 
     system_prompt = prompt_service.load_prompt("agent.md") or _FALLBACK_SYSTEM_PROMPT
+    skill_prompt = skill_service.render_skill_prompt(request.instruction)
+    if skill_prompt:
+        system_prompt += f"\n\n{skill_prompt}"
     formula_with_text = requests_formula_with_text(request.instruction)
     if formula_with_text:
         system_prompt += (

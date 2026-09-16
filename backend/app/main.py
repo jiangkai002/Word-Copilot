@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import config
-from .api import agent, chat, edit, meta
+from .api import agent, chat, edit, meta, skills
 from .errors import BackendHTTPError
 from .llm.base import LLMError, LLMTimeoutError
 
@@ -31,7 +31,7 @@ if config.BACKEND_CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.BACKEND_CORS_ORIGINS,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Accept"],
     )
 
@@ -91,3 +91,4 @@ app.include_router(meta.router)
 app.include_router(chat.router)
 app.include_router(edit.router)
 app.include_router(agent.router)
+app.include_router(skills.router)

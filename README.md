@@ -163,6 +163,20 @@ py run.py
 健康检查：`curl http://localhost:8100/api/v1/health`
 （或直接在任务窗格「设置」里点「保存并测试」）。
 
+### Skill 配置后台
+
+后端启动后访问 [http://localhost:8100/admin/skills](http://localhost:8100/admin/skills)。
+管理页支持新建、编辑、启用/停用和删除 Skill。每个 Skill 包含：
+
+- 名称与说明；
+- 触发词（逗号分隔；留空表示所有请求均加载）；
+- 注入聊天及 Agent 系统提示词的工作指令；
+- 启用状态。
+
+配置默认保存在 `backend/data/skills.json`（已加入 `.gitignore`）。如需指定其他
+位置，可设置环境变量 `SKILL_STORE_PATH`。管理接口为 `GET/POST /api/v1/skills`
+及 `PUT/DELETE /api/v1/skills/{id}`。
+
 ## Word Add-in Sideload
 
 ```bash

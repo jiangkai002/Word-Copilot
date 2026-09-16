@@ -10,6 +10,8 @@ __pycache__/
 
 # 环境配置（含密钥，勿提交）
 backend/.env
+backend/data/skills.json
+backend/data/skills.json.tmp
 
 # Office Add-in 工具
 .office-addin-dev-certs/
