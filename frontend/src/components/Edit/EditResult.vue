@@ -39,6 +39,12 @@ async function submitRegenerate(withFeedback: boolean): Promise<void> {
   regenerateFeedback.value = "";
 }
 
+/** 点击卡片 → 跳转（选中并滚动）到文档中对应位置 */
+async function locateInDocument(): Promise<void> {
+  if (!tx.value) return;
+  await editsStore.locate(tx.value.id);
+}
+
 const KIND_LABELS: Record<TransactionKind, string> = {
   text: "AI 修改",
   format: "AI 格式",
@@ -256,7 +262,13 @@ const paragraphPreview = computed(() => {
 </script>
 
 <template>
-  <div v-if="tx" class="edit-card" :class="tx.status">
+  <div
+    v-if="tx"
+    class="edit-card"
+    :class="tx.status"
+    title="点击卡片定位到文档中的对应位置"
+    @click="locateInDocument"
+  >
     <div class="card-head">
       <span class="card-tag">{{ kindLabel }}</span>
       <span class="card-id">{{ tx.id }}</span>
@@ -329,7 +341,7 @@ const paragraphPreview = computed(() => {
 
     <p v-if="tx.note" class="card-note">{{ tx.note }}</p>
 
-    <div v-if="tx.status === 'pending'" class="card-actions">
+    <div v-if="tx.status === 'pending'" class="card-actions" @click.stop>
       <button class="btn primary" :disabled="busy" @click="editsStore.accept(tx.id)">接受</button>
       <button class="btn danger" :disabled="busy" @click="editsStore.reject(tx.id)">拒绝</button>
       <button
@@ -343,7 +355,7 @@ const paragraphPreview = computed(() => {
         重新生成
       </button>
     </div>
-    <div v-if="tx.status === 'pending' && tx.kind === 'text' && regenerateOpen" class="regenerate-panel">
+    <div v-if="tx.status === 'pending' && tx.kind === 'text' && regenerateOpen" class="regenerate-panel" @click.stop>
       <label :for="`regenerate-feedback-${tx.id}`">这次希望怎么改？ <span>可选</span></label>
       <textarea
         :id="`regenerate-feedback-${tx.id}`"
@@ -384,6 +396,14 @@ const paragraphPreview = computed(() => {
   border-left: 3px solid var(--accent);
   border-radius: var(--radius);
   background: var(--bg);
+  cursor: pointer;
+}
+
+.edit-card:hover {
+  /* 只高亮三侧边框：左侧颜色标记事务状态（成功 / 拒绝），保持不变 */
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 .edit-card.accepted {

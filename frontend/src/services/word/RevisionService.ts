@@ -21,6 +21,7 @@ import type { FormatBeforeValues } from "@/models/EditPlan";
 import type { TransactionKind } from "@/models/EditTransaction";
 import { toCopilotError } from "@/utils/errors";
 import { logger } from "@/utils/logger";
+import { stripTrailingMarks, toWordText } from "@/utils/text";
 import { contentControlService } from "./ContentControlService";
 import { formatEngine } from "./FormatEngine";
 import { WordService } from "./WordService";
@@ -43,6 +44,9 @@ export interface TransactionRef {
 }
 
 export type ReconcileMode = "count" | "existence";
+
+/** 定位兜底搜索的安全长度上限（与 RangeLocator.SAFE_SEARCH_LENGTH 对齐） */
+const JUMP_SEARCH_MAX_LENGTH = 200;
 
 /**
  * 对账模式判定（纯函数）：
@@ -166,6 +170,47 @@ export class RevisionService {
       const control = await contentControlService.find(ctx, tag);
       if (!control) return [];
       return this.listChanges(ctx, control);
+    });
+  }
+
+  /**
+   * 跳转到事务对应的文档位置（编辑卡片点击定位）。
+   *
+   * - 事务 Content Control 仍在（pending 等）：选中其内容范围 ——
+   *   Word 会把视图滚动到选区并高亮，用户直接看到修订内容。
+   * - 控件已移除（已接受 / 已拒绝）：按 fallbackTexts 逐个兜底搜索，
+   *   唯一命中才选中（多处命中 = 歧义，宁可不跳也不错跳）。
+   *
+   * 返回 false 表示未能定位（调用方给出提示）。
+   */
+  async jumpToTransaction(tag: string, fallbackTexts: readonly string[]): Promise<boolean> {
+    return WordService.run(async (ctx) => {
+      const control = await contentControlService.find(ctx, tag);
+      if (control) {
+        const range = control.getRange(Word.RangeLocation.content);
+        range.select();
+        await ctx.sync();
+        return true;
+      }
+
+      for (const text of fallbackTexts) {
+        // 只取可搜索的前缀；空文本与超长文本跳过（search 长度限制）
+        const probe = toWordText(stripTrailingMarks(text)).slice(0, JUMP_SEARCH_MAX_LENGTH);
+        if (!probe) continue;
+        try {
+          const results = ctx.document.body.search(probe, { matchCase: true });
+          results.load("text");
+          await ctx.sync();
+          if (results.items.length === 1) {
+            results.items[0].select();
+            await ctx.sync();
+            return true;
+          }
+        } catch (err) {
+          logger.debug("定位兜底搜索失败：", toCopilotError(err).message);
+        }
+      }
+      return false;
     });
   }
 

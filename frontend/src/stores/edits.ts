@@ -690,6 +690,32 @@ export const useEditStore = defineStore("edits", () => {
 
   // ---------------- 事务操作（§78 / §79 / §80） ----------------
 
+  /**
+   * 点击编辑卡片 → 跳转到文档中对应位置（选中并滚动到事务修订处）。
+   * 事务控件仍在时精确定位；已接受 / 已拒绝（控件已移除）按当前
+   * 正文文本兜底搜索：已接受优先新文本，其余优先原文（已还原）。
+   */
+  async function locate(id: string): Promise<void> {
+    const tx = transactions.value[id];
+    if (!tx || working.value) return;
+    const chatStore = useChatStore();
+    working.value = true;
+    try {
+      const fallbackTexts = tx.status === "accepted"
+        ? [tx.newText, tx.originalText]
+        : [tx.originalText, tx.newText];
+      const found = await revisionService.jumpToTransaction(tx.contentControlTag, fallbackTexts);
+      if (!found) {
+        chatStore.addSystem(`${tx.id} 对应的文档位置未能定位（内容可能已被修改或删除）。`);
+      }
+    } catch (err) {
+      const ce = toCopilotError(err);
+      chatStore.addSystem(`定位失败：${ce.message}`, ce.code);
+    } finally {
+      working.value = false;
+    }
+  }
+
   /** 接受事务（仅作用于该事务的 Word 修订 / Content Control，§55） */
   async function accept(id: string): Promise<void> {
     const tx = transactions.value[id];
@@ -882,6 +908,7 @@ export const useEditStore = defineStore("edits", () => {
     accept,
     reject,
     regenerate,
+    locate,
     reconcile,
     clear,
   };
