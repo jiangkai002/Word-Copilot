@@ -175,6 +175,7 @@ export const useEditStore = defineStore("edits", () => {
   interface EditFlowOptions {
     regenerateCount: number;
     avoidTexts: string[];
+    regenerationFeedback?: string;
   }
 
   /**
@@ -209,6 +210,7 @@ export const useEditStore = defineStore("edits", () => {
         },
         regenerate_count: options.regenerateCount,
         avoid_texts: options.avoidTexts.length > 0 ? options.avoidTexts : undefined,
+        regeneration_feedback: options.regenerationFeedback?.trim() || undefined,
       };
       const response = await editApi.requestEdit(payload);
 
@@ -733,7 +735,7 @@ export const useEditStore = defineStore("edits", () => {
    * 复用已保存的 locator，光标移动不影响。
    * 仅文本事务支持（格式 / 插入类无「重新生成」语义，UI 亦隐藏按钮）。
    */
-  async function regenerate(id: string): Promise<void> {
+  async function regenerate(id: string, feedback = ""): Promise<void> {
     const tx = transactions.value[id];
     const chatStore = useChatStore();
     if (!tx) return;
@@ -779,6 +781,7 @@ export const useEditStore = defineStore("edits", () => {
     await applyEditFlow(instruction, target, {
       regenerateCount: tx.regenerateCount + 1,
       avoidTexts: [tx.newText, ...olderAvoidTexts],
+      regenerationFeedback: feedback,
     });
   }
 

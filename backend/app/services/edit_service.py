@@ -107,6 +107,13 @@ def _build_edit_messages(request: EditRequest) -> list[dict[str, str]]:
             preview = text if len(text) <= 120 else f"{text[:120]}…"
             lines.append(f"历史版本 {index}：{preview}")
 
+    if request.regeneration_feedback and request.regeneration_feedback.strip():
+        lines.append(
+            "\n【本次重新生成的补充要求】\n"
+            f"{request.regeneration_feedback.strip()}\n"
+            "请在保持原始修改目标的前提下，优先满足这项补充要求。"
+        )
+
     lines.append(
         "\n【输出要求】只输出一个 JSON 对象（不要 Markdown 代码块、不要多余文字）：\n"
         '{"summary": "一句话概括本次修改", '

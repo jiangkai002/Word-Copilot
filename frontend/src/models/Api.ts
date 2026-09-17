@@ -50,6 +50,8 @@ export interface EditRequestPayload {
   /** 重新生成：提示模型避免重复上次输出 */
   regenerate_count?: number;
   avoid_texts?: string[];
+  /** 重新生成时用户补充的可选要求；不覆盖最初修改指令 */
+  regeneration_feedback?: string;
 }
 
 export interface EditResponsePayload {

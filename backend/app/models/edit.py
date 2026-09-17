@@ -28,6 +28,7 @@ class EditRequest(BaseModel):
     context: EditContextPayload | None = None
     regenerate_count: int = 0
     avoid_texts: list[str] = Field(default_factory=list)
+    regeneration_feedback: str | None = Field(default=None, max_length=1000)
 
 
 class EditResponse(BaseModel):

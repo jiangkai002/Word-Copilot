@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, ref } from "vue";
 import katex from "katex";
 import { useEditStore } from "@/stores/edits";
 import { useChatStore } from "@/stores/chat";
@@ -15,6 +15,29 @@ const chatStore = useChatStore();
 const tx = computed<EditTransaction | undefined>(() => editsStore.getTransaction(props.transactionId));
 
 const busy = computed(() => editsStore.working);
+const regenerateOpen = ref(false);
+const regenerateFeedback = ref("");
+const regenerateInput = ref<HTMLTextAreaElement | null>(null);
+
+async function openRegenerate(): Promise<void> {
+  regenerateOpen.value = true;
+  await nextTick();
+  regenerateInput.value?.focus();
+}
+
+function closeRegenerate(): void {
+  if (busy.value) return;
+  regenerateOpen.value = false;
+  regenerateFeedback.value = "";
+}
+
+async function submitRegenerate(withFeedback: boolean): Promise<void> {
+  if (!tx.value || busy.value) return;
+  const feedback = withFeedback ? regenerateFeedback.value.trim() : "";
+  regenerateOpen.value = false;
+  await editsStore.regenerate(tx.value.id, feedback);
+  regenerateFeedback.value = "";
+}
 
 const KIND_LABELS: Record<TransactionKind, string> = {
   text: "AI 修改",
@@ -309,9 +332,47 @@ const paragraphPreview = computed(() => {
     <div v-if="tx.status === 'pending'" class="card-actions">
       <button class="btn primary" :disabled="busy" @click="editsStore.accept(tx.id)">接受</button>
       <button class="btn danger" :disabled="busy" @click="editsStore.reject(tx.id)">拒绝</button>
-      <button v-if="tx.kind === 'text'" class="btn" :disabled="busy" @click="editsStore.regenerate(tx.id)">重新生成</button>
+      <button
+        v-if="tx.kind === 'text'"
+        class="btn"
+        :class="{ active: regenerateOpen }"
+        :disabled="busy"
+        :aria-expanded="regenerateOpen"
+        @click="regenerateOpen ? closeRegenerate() : openRegenerate()"
+      >
+        重新生成
+      </button>
     </div>
-    <div v-else class="card-done-hint">可在 Word「审阅」中查看修订历史</div>
+    <div v-if="tx.status === 'pending' && tx.kind === 'text' && regenerateOpen" class="regenerate-panel">
+      <label :for="`regenerate-feedback-${tx.id}`">这次希望怎么改？ <span>可选</span></label>
+      <textarea
+        :id="`regenerate-feedback-${tx.id}`"
+        ref="regenerateInput"
+        v-model="regenerateFeedback"
+        maxlength="1000"
+        rows="3"
+        placeholder="例如：语气更自然，少用专业术语…"
+        :disabled="busy"
+        @keydown.ctrl.enter.prevent="submitRegenerate(true)"
+        @keydown.meta.enter.prevent="submitRegenerate(true)"
+        @keydown.esc.prevent="closeRegenerate"
+      ></textarea>
+      <div class="regenerate-footer">
+        <span class="regenerate-hint">可直接生成，AI 会自动换一个版本</span>
+        <div class="regenerate-actions">
+          <button class="btn" :disabled="busy" @click="closeRegenerate">取消</button>
+          <button class="btn" :disabled="busy" @click="submitRegenerate(false)">直接重新生成</button>
+          <button
+            class="btn primary"
+            :disabled="busy || !regenerateFeedback.trim()"
+            @click="submitRegenerate(true)"
+          >
+            按建议生成
+          </button>
+        </div>
+      </div>
+    </div>
+    <div v-if="tx.status !== 'pending'" class="card-done-hint">可在 Word「审阅」中查看修订历史</div>
   </div>
 </template>
 
@@ -400,6 +461,75 @@ const paragraphPreview = computed(() => {
   display: flex;
   gap: 6px;
   margin-top: 8px;
+}
+
+.card-actions .btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-weak);
+}
+
+.regenerate-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--panel-bg);
+}
+
+.regenerate-panel label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.regenerate-panel label span {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.regenerate-panel textarea {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  outline: none;
+  font: inherit;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.regenerate-panel textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.regenerate-panel textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.regenerate-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.regenerate-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.regenerate-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .card-done-hint {
