@@ -485,8 +485,8 @@ manifest 中任务窗格地址固定为 `https://localhost:3000`（端口写死�
 **Q11：Agent 模式和普通修改有什么区别？会绕过安全机制吗？**
 Agent（Microsoft Agent Framework）面向多目标任务：读全文快照、调用只读工具
 （get_outline / read_paragraph / search_paragraphs）回答问题，并通过六类提案工具
-（propose_edit / propose_format / insert_table / insert_formula / insert_paragraph）
-提交批量提案。
+（propose_edit / propose_format / insert_table / insert_formula / insert_paragraph /
+insert_heading）提交批量提案。
 **不会绕过任何安全机制**——LLM 永远碰不到 Word：每条提案由前端独立走
 冲突检查与哈希乐观锁，N 条修改 = N 张独立事务卡片。文本、段落和公式均进入
 Word 修订写入管线；公式与富段落使用完整 Flat OPC，避免裸 OOXML 片段导致的
