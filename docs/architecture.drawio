@@ -1,0 +1,46 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="architecture" name="架构">
+    <mxGraphModel dx="1000" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="word" value="Word（桌面 / 365）" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="500" height="340" as="geometry" />
+        </mxCell>
+        <mxCell id="pane" value="任务窗格（iframe）&#10;Vue 3 + Pinia + TypeScript" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;fontSize=13;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="70" y="120" width="440" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="svcword" value="services/word&#10;Office.js 封装：修订写入 / Diff 应用 / 插入" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="70" y="270" width="210" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="svcapi" value="services/api&#10;Chat / Edit / Agent SSE 客户端" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="300" y="270" width="210" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="backend" value="Backend（FastAPI + Python 3.12，无数据库）" style="rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="680" y="80" width="420" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="bapi" value="api/ —— chat / edit / agent（SSE）" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="700" y="140" width="380" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="bsvc" value="services/ —— Prompt 构造 · Pydantic 校验" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="700" y="220" width="380" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="baf" value="Microsoft Agent Framework（可选，未装可启动）" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="700" y="300" width="380" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="llm" value="LLM（任意 OpenAI 兼容接口）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="680" y="520" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="note" value="LLM 永不直接操作 Word：&#10;后端只产出文本计划，文档写入全部由前端 Office.js 修订管线执行&#10;（乐观锁 → Track Changes → 事务卡片）" style="rounded=1;whiteSpace=wrap;html=1;align=left;spacing=8;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="40" y="480" width="500" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="HTTPS · SSE（开发期 Vite 代理 /api → :8100）" style="edgeStyle=none;html=1;fontSize=12;exitX=1;exitY=0.5;entryX=0;entryY=0.4" edge="1" parent="1" source="pane" target="backend">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="OpenAI 协议" style="edgeStyle=none;html=1;fontSize=12;exitX=0.5;exitY=1;entryX=0.5;entryY=0" edge="1" parent="1" source="backend" target="llm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

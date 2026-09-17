@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1140" height="640" viewBox="0 0 1140 640" font-family="Segoe UI, Microsoft YaHei, PingFang SC, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#666666"/>
+    </marker>
+  </defs>
+  <style>
+    .box { fill: #ffffff; stroke: #666666; stroke-width: 1.5; rx: 8; }
+    .label { fill: #333333; text-anchor: middle; }
+    .edgelabel { fill: #555555; text-anchor: middle; font-size: 12px; }
+  </style>
+  <rect x="0" y="0" width="1140" height="640" fill="#ffffff"/>
+
+  <!-- Word 容器 -->
+  <rect x="40" y="60" width="500" height="340" rx="10" fill="#dae8fc" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="290" y="90" class="label" font-size="15" font-weight="bold">Word（桌面 / 365）</text>
+
+  <!-- 任务窗格 -->
+  <rect x="70" y="120" width="440" height="120" rx="8" fill="#ffffff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="290" y="172" class="label" font-size="13" font-weight="bold">任务窗格（iframe）</text>
+  <text x="290" y="196" class="label" font-size="13">Vue 3 + Pinia + TypeScript</text>
+
+  <!-- services/word -->
+  <rect x="70" y="270" width="210" height="90" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <text x="175" y="302" class="label" font-size="12" font-weight="bold">services/word</text>
+  <text x="175" y="322" class="label" font-size="12">Office.js 封装：</text>
+  <text x="175" y="340" class="label" font-size="12">修订写入 / Diff 应用 / 插入</text>
+
+  <!-- services/api -->
+  <rect x="300" y="270" width="210" height="90" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <text x="405" y="302" class="label" font-size="12" font-weight="bold">services/api</text>
+  <text x="405" y="322" class="label" font-size="12">Chat / Edit / Agent</text>
+  <text x="405" y="340" class="label" font-size="12">SSE 客户端</text>
+
+  <!-- Backend -->
+  <rect x="680" y="80" width="420" height="300" rx="10" fill="#d5e8d4" stroke="#82b366" stroke-width="2"/>
+  <text x="890" y="110" class="label" font-size="15" font-weight="bold">Backend（FastAPI + Python 3.12，无数据库）</text>
+
+  <rect x="700" y="140" width="380" height="60" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <text x="890" y="176" class="label" font-size="12">api/ —— chat / edit / agent（SSE）</text>
+
+  <rect x="700" y="220" width="380" height="60" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <text x="890" y="256" class="label" font-size="12">services/ —— Prompt 构造 · Pydantic 校验</text>
+
+  <rect x="700" y="300" width="380" height="60" rx="8" fill="#ffffff" stroke="#666666" stroke-width="1.5"/>
+  <text x="890" y="336" class="label" font-size="12">Microsoft Agent Framework（可选，未装可启动）</text>
+
+  <!-- LLM -->
+  <rect x="680" y="520" width="420" height="70" rx="8" fill="#fff2cc" stroke="#d6b656" stroke-width="2"/>
+  <text x="890" y="562" class="label" font-size="13" font-weight="bold">LLM（任意 OpenAI 兼容接口）</text>
+
+  <!-- 约束说明 -->
+  <rect x="40" y="480" width="500" height="110" rx="8" fill="#ffe6cc" stroke="#d79b00" stroke-width="1.5"/>
+  <text x="290" y="515" class="label" font-size="12" font-weight="bold">LLM 永不直接操作 Word</text>
+  <text x="290" y="537" class="label" font-size="12">后端只产出文本计划，文档写入全部由前端 Office.js 修订管线执行</text>
+  <text x="290" y="559" class="label" font-size="12">（乐观锁 → Track Changes → 事务卡片）</text>
+
+  <!-- 连线：任务窗格 → Backend -->
+  <line x1="510" y1="180" x2="678" y2="200" stroke="#666666" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="594" y="172" class="edgelabel">HTTPS · SSE（开发期 Vite 代理 /api → :8100）</text>
+
+  <!-- 连线：Backend → LLM -->
+  <line x1="890" y1="380" x2="890" y2="518" stroke="#666666" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="900" y="455" class="edgelabel" text-anchor="start">OpenAI 协议</text>
+</svg>
