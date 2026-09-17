@@ -7,7 +7,7 @@
  * - 完整 Flat OPC 包（insertOoxml 稳定导入，不传裸 w:p 片段）
  */
 import { describe, expect, it } from "vitest";
-import { containsInlineFormula, escapeXmlText, paragraphsToOoxml } from "@/services/word/InsertEngine";
+import { containsInlineFormula, escapeXmlText, headingToOoxml, paragraphsToOoxml } from "@/services/word/InsertEngine";
 
 describe("escapeXmlText", () => {
   it("五个 XML 保留字符全部转义", () => {
@@ -56,5 +56,20 @@ describe("paragraphsToOoxml", () => {
 
   it("文字中的非法公式在写入 Word 前失败", () => {
     expect(() => paragraphsToOoxml(["公式 $\\frac{$ 无效"])).toThrow();
+  });
+});
+
+describe("headingToOoxml", () => {
+  it.each([1, 2, 3, 9])("生成 Word 内置 Heading%s 样式", (level) => {
+    const ooxml = headingToOoxml("第一章 <系统概述>", level);
+    expect(ooxml).toContain(`<w:pStyle w:val="Heading${level}"/>`);
+    expect(ooxml).toContain(`<w:outlineLvl w:val="${level - 1}"/>`);
+    expect(ooxml).toContain("第一章 &lt;系统概述&gt;");
+  });
+
+  it("拒绝非法级别、空标题和多行标题", () => {
+    expect(() => headingToOoxml("标题", 0)).toThrow("1-9");
+    expect(() => headingToOoxml("   ", 1)).toThrow("非空的单行");
+    expect(() => headingToOoxml("第一章\n正文", 1)).toThrow("非空的单行");
   });
 });

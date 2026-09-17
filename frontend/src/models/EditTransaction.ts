@@ -19,7 +19,8 @@ export type TransactionKind =
   | "format"
   | "insert-table"
   | "insert-formula"
-  | "insert-paragraph";
+  | "insert-paragraph"
+  | "insert-heading";
 
 export interface EditTransaction {
   /** 展示用事务号，例如 AI_EDIT_001 */
@@ -63,6 +64,9 @@ export interface EditTransaction {
   displayFormula?: boolean;
   /** kind === "insert-paragraph"：每行一个段落的文本 */
   paragraphLines?: string[];
+  /** kind === "insert-heading" */
+  headingText?: string;
+  headingLevel?: number;
   /** insert-*：null = 插入到文档末尾（对账 / 展示用） */
   anchorId?: string | null;
 }

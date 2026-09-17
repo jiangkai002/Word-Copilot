@@ -1,4 +1,4 @@
-"""Agent SSE 流式接口（§51：批量编辑 + 文档问答 + 格式 / 表格 / 公式 / 段落，双事件通道）。"""
+"""Agent SSE 流式接口（§51：批量编辑 + 文档问答 + 格式 / 表格 / 公式 / 段落 / 标题）。"""
 from __future__ import annotations
 
 import asyncio
@@ -15,6 +15,7 @@ from ..services.agent_service import (
     DoneEvent,
     FormulaProposalEvent,
     FormatProposalEvent,
+    HeadingProposalEvent,
     ParagraphProposalEvent,
     ProposalEvent,
     TableProposalEvent,
@@ -63,6 +64,9 @@ async def agent_stream(request: AgentStreamRequest) -> StreamingResponse:
                 elif isinstance(event, ParagraphProposalEvent):
                     proposal_count += 1
                     yield _sse_event("proposal_paragraph", event.model_dump())
+                elif isinstance(event, HeadingProposalEvent):
+                    proposal_count += 1
+                    yield _sse_event("proposal_heading", event.model_dump())
                 elif isinstance(event, DoneEvent):
                     yield _sse_event(
                         "done",

@@ -15,8 +15,10 @@ vi.mock("@/services/word/InsertEngine", async (importOriginal) => {
       applyTableInsertPlan: vi.fn(),
       applyFormulaInsertPlan: vi.fn(),
       applyParagraphInsertPlan: vi.fn(),
+      applyHeadingInsertPlan: vi.fn(),
       commitFormulaInsertPlan: vi.fn(),
       commitParagraphInsertPlan: vi.fn(),
+      commitHeadingInsertPlan: vi.fn(),
     },
   };
 });
@@ -131,6 +133,31 @@ describe("公式与段落修订事务", () => {
     expect(store.pendingList).toHaveLength(1);
     finish(outcome);
     expect(await applying).toEqual({ ok: true });
+  });
+
+  it("Word 标题使用独立修订事务并保存级别", async () => {
+    vi.mocked(insertEngine.applyHeadingInsertPlan).mockResolvedValue(outcome);
+    const store = useEditStore();
+    const result = await store.applyProposal(
+      "创建第一章",
+      {
+        kind: "insert-heading",
+        anchor_paragraph_id: null,
+        summary: "创建章标题",
+        heading_text: "第一章 系统概述",
+        level: 1,
+      },
+      [],
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(insertEngine.applyHeadingInsertPlan).toHaveBeenCalledOnce();
+    expect(store.pendingList[0]).toMatchObject({
+      kind: "insert-heading",
+      headingText: "第一章 系统概述",
+      headingLevel: 1,
+      changeCount: 1,
+    });
   });
 
   it("Word 写入失败时保留失败卡片，不留下无卡片状态", async () => {

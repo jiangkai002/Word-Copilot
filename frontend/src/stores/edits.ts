@@ -14,6 +14,7 @@ import type {
   FormulaInsertPlan,
   FormatChanges,
   FormatPlan,
+  HeadingInsertPlan,
   ParagraphInsertPlan,
   TableInsertPlan,
 } from "@/models/EditPlan";
@@ -21,6 +22,7 @@ import type { EditPlan } from "@/models/EditPlan";
 import type {
   AgentFormatProposalEvent,
   AgentFormulaProposalEvent,
+  AgentHeadingProposalEvent,
   AgentParagraphProposalEvent,
   AgentProposal,
   AgentTableProposalEvent,
@@ -34,7 +36,7 @@ import { editApi } from "@/services/api/EditApi";
 import { proposalToCapturedTarget } from "@/services/agent/ProposalMapper";
 import { diffEngine } from "@/services/diff/DiffEngine";
 import { formatEngine } from "@/services/word/FormatEngine";
-import { insertEngine, paragraphsToOoxml } from "@/services/word/InsertEngine";
+import { headingToOoxml, insertEngine, paragraphsToOoxml } from "@/services/word/InsertEngine";
 import { latexToOoxml } from "@/services/word/FormulaOoxml";
 import { patchEngine, type PatchOutcome } from "@/services/word/PatchEngine";
 import { revisionService } from "@/services/word/RevisionService";
@@ -56,6 +58,8 @@ type InsertEngineCompat = {
   commitFormulaInsertPlan?: (plan: FormulaInsertPlan) => Promise<PatchOutcome>;
   applyParagraphInsertPlan?: (plan: ParagraphInsertPlan) => Promise<PatchOutcome>;
   commitParagraphInsertPlan?: (plan: ParagraphInsertPlan) => Promise<PatchOutcome>;
+  applyHeadingInsertPlan?: (plan: HeadingInsertPlan) => Promise<PatchOutcome>;
+  commitHeadingInsertPlan?: (plan: HeadingInsertPlan) => Promise<PatchOutcome>;
 };
 
 /** 新旧前端模块在 Vite HMR / Office 缓存窗口内共存时兼容两代方法名。 */
@@ -73,6 +77,15 @@ function applyParagraphInsertCompat(plan: ParagraphInsertPlan): Promise<PatchOut
   const apply = engine.applyParagraphInsertPlan ?? engine.commitParagraphInsertPlan;
   if (!apply) {
     throw new CopilotError("FRONTEND_VERSION_MISMATCH", "InsertEngine 段落插入方法不可用");
+  }
+  return apply.call(engine, plan);
+}
+
+function applyHeadingInsertCompat(plan: HeadingInsertPlan): Promise<PatchOutcome> {
+  const engine = insertEngine as unknown as InsertEngineCompat;
+  const apply = engine.applyHeadingInsertPlan ?? engine.commitHeadingInsertPlan;
+  if (!apply) {
+    throw new CopilotError("FRONTEND_VERSION_MISMATCH", "InsertEngine 标题插入方法不可用");
   }
   return apply.call(engine, plan);
 }
@@ -304,6 +317,8 @@ export const useEditStore = defineStore("edits", () => {
           return await applyFormulaProposal(instruction, proposal, paragraphs);
         case "insert-paragraph":
           return await applyParagraphProposal(instruction, proposal, paragraphs);
+        case "insert-heading":
+          return await applyHeadingProposal(instruction, proposal, paragraphs);
       }
       return { ok: false, code: "UNKNOWN_PROPOSAL_KIND", message: `未知提案类型：${(proposal as { kind?: string }).kind}` };
     } catch (err) {
@@ -588,6 +603,77 @@ export const useEditStore = defineStore("edits", () => {
     chatStore.addEditMessage(tx.id);
     try {
       const outcome = await applyParagraphInsertCompat(plan);
+      tx.contentControlTag = outcome.contentControlTag;
+      tx.changeCount = outcome.changeCount ?? 0;
+      return { ok: true };
+    } catch (err) {
+      const ce = toCopilotError(err);
+      tx.status = "invalid";
+      tx.note = `写入 Word 修订失败：${ce.message}`;
+      throw err;
+    }
+  }
+
+  /** 标题提案：使用 Word 内置 Heading1～Heading9，进入导航窗格和自动目录。 */
+  async function applyHeadingProposal(
+    instruction: string,
+    proposal: AgentHeadingProposalEvent,
+    paragraphs: readonly SnapshotParagraph[],
+  ): Promise<ApplyEditResult> {
+    const chatStore = useChatStore();
+    const text = proposal.heading_text.trim();
+    if (!text || /[\r\n\v]/.test(text)) {
+      return { ok: false, code: "INVALID_EDIT_RESPONSE", message: "标题必须是非空的单行文字" };
+    }
+    if (!Number.isInteger(proposal.level) || proposal.level < 1 || proposal.level > 9) {
+      return { ok: false, code: "INVALID_EDIT_RESPONSE", message: "标题级别必须是 1-9 的整数" };
+    }
+    const anchorEnd = proposal.anchor_paragraph_id == null;
+    const target = anchorEnd ? null : await proposalToCapturedTarget(proposal, paragraphs);
+    if (!anchorEnd && !target) {
+      return {
+        ok: false,
+        code: "PROPOSAL_TARGET_NOT_FOUND",
+        message: `锚点段落 ${proposal.anchor_paragraph_id} 不在快照中`,
+      };
+    }
+    const conflict = findPendingConflict(target?.locator ?? null);
+    if (conflict) {
+      return { ok: false, code: "PENDING_EDIT_CONFLICT", message: "该锚点已有待处理修改" };
+    }
+
+    const plan: HeadingInsertPlan = {
+      id: nextTransactionId(),
+      contentControlTag: editControlTag(),
+      anchor: target?.locator ?? null,
+      text,
+      level: proposal.level as HeadingInsertPlan["level"],
+      summary: proposal.summary,
+    };
+    headingToOoxml(plan.text, plan.level); // 写入前纯函数预检
+
+    const tx: EditTransaction = {
+      id: plan.id,
+      contentControlTag: plan.contentControlTag,
+      createdAt: Date.now(),
+      status: "pending",
+      kind: "insert-heading",
+      originalText: target?.text ?? "",
+      newText: text,
+      summary: plan.summary,
+      instruction,
+      changeCount: 0,
+      locator: target?.locator ?? null,
+      targetKind: "paragraph",
+      regenerateCount: 0,
+      headingText: text,
+      headingLevel: plan.level,
+      anchorId: proposal.anchor_paragraph_id ?? null,
+    };
+    registerTransaction(tx);
+    chatStore.addEditMessage(tx.id);
+    try {
+      const outcome = await applyHeadingInsertCompat(plan);
       tx.contentControlTag = outcome.contentControlTag;
       tx.changeCount = outcome.changeCount ?? 0;
       return { ok: true };

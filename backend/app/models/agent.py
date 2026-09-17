@@ -5,15 +5,16 @@ Agent 接口 wire 格式为 snake_case（与 edit 一致）。
 提案（ProposalEvent）的 original_text 由后端从快照回显 —— 前端捕获的
 快照文本为权威原文，保证客户端 Diff 坐标系有效（§19）。
 
-提案共五类（判别字段 kind，SSE 帧名亦不同）：
+提案共六类（判别字段 kind，SSE 帧名亦不同）：
 - ProposalEvent（文本，kind 隐含为 "text"，帧名 proposal —— 不加 kind 字段
   以保持既有 wire 格式不变）
 - FormatProposalEvent（格式，帧名 proposal_format）
 - TableProposalEvent（表格，帧名 proposal_table）
 - FormulaProposalEvent（公式，帧名 proposal_formula）
 - ParagraphProposalEvent（纯文字段落，帧名 proposal_paragraph）
+- HeadingProposalEvent（Word 内置标题样式，帧名 proposal_heading）
 
-插入类提案（表格 / 公式 / 段落）的 anchor_paragraph_id 可为 None —— 表示插入到
+插入类提案（表格 / 公式 / 段落 / 标题）的 anchor_paragraph_id 可为 None —— 表示插入到
 文档末尾（空文档 / 用户未指明位置时的默认行为），前端经 Body.insert*("End")
 落地，无需锚点段落。
 """
@@ -142,4 +143,15 @@ class ParagraphProposalEvent(BaseModel):
     anchor_paragraph_id: str | None = None
     anchor_text: str = ""
     paragraph_text: str = Field(min_length=1, max_length=2000)
+    summary: str
+
+
+class HeadingProposalEvent(BaseModel):
+    """SSE proposal_heading 帧载荷：插入 Word 标题 1～9 段落。"""
+
+    kind: Literal["insert-heading"] = "insert-heading"
+    anchor_paragraph_id: str | None = None
+    anchor_text: str = ""
+    heading_text: str = Field(min_length=1, max_length=300)
+    level: int = Field(ge=1, le=9)
     summary: str

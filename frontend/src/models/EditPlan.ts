@@ -126,3 +126,14 @@ export interface ParagraphInsertPlan {
   lines: string[];
   summary?: string;
 }
+
+/** Word 内置标题段落插入计划：Heading1～Heading9，可进入导航窗格 / 自动目录。 */
+export interface HeadingInsertPlan {
+  id: string;
+  contentControlTag: string;
+  /** null = 文档末尾 */
+  anchor: RangeLocator | null;
+  text: string;
+  level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  summary?: string;
+}

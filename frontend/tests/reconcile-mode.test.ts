@@ -28,6 +28,7 @@ describe("resolveReconcileMode", () => {
     expect(resolveReconcileMode("insert-table", 0)).toBe("existence");
     expect(resolveReconcileMode("insert-formula", 0)).toBe("existence");
     expect(resolveReconcileMode("insert-paragraph", 0)).toBe("existence");
+    expect(resolveReconcileMode("insert-heading", 0)).toBe("existence");
     expect(resolveReconcileMode("insert-formula", null)).toBe("existence");
     expect(resolveReconcileMode("insert-table", undefined)).toBe("existence");
   });
@@ -36,10 +37,11 @@ describe("resolveReconcileMode", () => {
     expect(resolveReconcileMode("insert-table", 3)).toBe("count");
     expect(resolveReconcileMode("insert-formula", 2)).toBe("count");
     expect(resolveReconcileMode("insert-paragraph", 1)).toBe("count");
+    expect(resolveReconcileMode("insert-heading", 1)).toBe("count");
   });
 
   it("全 kind 组合的矩阵", () => {
-    const kinds: TransactionKind[] = ["text", "format", "insert-table", "insert-formula", "insert-paragraph"];
+    const kinds: TransactionKind[] = ["text", "format", "insert-table", "insert-formula", "insert-paragraph", "insert-heading"];
     for (const kind of kinds) {
       expect(resolveReconcileMode(kind, 7)).toBe("count");
     }

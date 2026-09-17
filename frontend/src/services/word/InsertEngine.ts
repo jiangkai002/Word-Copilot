@@ -21,7 +21,13 @@
  * 异常清理：best-effort 删除已插入对象（table.delete() / range.delete()）
  * + REVISION_ERROR；清理失败仅记日志（§15 哈希保证重跑安全）。
  */
-import type { FormulaInsertPlan, ParagraphInsertPlan, RangeLocator, TableInsertPlan } from "@/models/EditPlan";
+import type {
+  FormulaInsertPlan,
+  HeadingInsertPlan,
+  ParagraphInsertPlan,
+  RangeLocator,
+  TableInsertPlan,
+} from "@/models/EditPlan";
 import type { PatchOutcome } from "./PatchEngine";
 import { latexToOmml, latexToOoxml } from "./FormulaOoxml";
 import { bodyContentToFlatOpc } from "./FlatOpc";
@@ -79,6 +85,22 @@ export function paragraphsToOoxml(lines: string[]): string {
     .map((line) => `<w:p>${richLineToOoxml(line)}</w:p>`)
     .join("");
   return bodyContentToFlatOpc(paragraphs);
+}
+
+/** 单个 Word 内置标题段落 → Flat OPC；Heading1～Heading9 保留大纲语义。 */
+export function headingToOoxml(text: string, level: number): string {
+  if (!Number.isInteger(level) || level < 1 || level > 9) {
+    throw new CopilotError("INVALID_EDIT_RESPONSE", "标题级别必须是 1-9 的整数。");
+  }
+  const heading = text.trim();
+  if (!heading || /[\r\n\v]/.test(heading)) {
+    throw new CopilotError("INVALID_EDIT_RESPONSE", "标题必须是非空的单行文字。");
+  }
+  return bodyContentToFlatOpc(
+    `<w:p><w:pPr><w:pStyle w:val="Heading${level}"/>` +
+      `<w:outlineLvl w:val="${level - 1}"/></w:pPr>` +
+      `<w:r><w:t xml:space="preserve">${escapeXmlText(heading)}</w:t></w:r></w:p>`,
+  );
 }
 
 export class InsertEngine {
@@ -168,6 +190,12 @@ export class InsertEngine {
     return this.applyTrackedOoxml(plan.anchor, plan.contentControlTag, ooxml, "段落");
   }
 
+  /** 以 Word 修订事务插入真正的 Heading1～Heading9 标题段落。 */
+  async applyHeadingInsertPlan(plan: HeadingInsertPlan): Promise<PatchOutcome> {
+    const ooxml = headingToOoxml(plan.text, plan.level);
+    return this.applyTrackedOoxml(plan.anchor, plan.contentControlTag, ooxml, "标题");
+  }
+
   /**
    * 热更新兼容别名：旧版 Store 仍可能持有 commit* 调用，新旧模块在一次
    * 完整任务窗格刷新前允许共存。后续正式版本仍保留，避免加载项缓存导致
@@ -179,6 +207,10 @@ export class InsertEngine {
 
   async commitParagraphInsertPlan(plan: ParagraphInsertPlan): Promise<PatchOutcome> {
     return this.applyParagraphInsertPlan(plan);
+  }
+
+  async commitHeadingInsertPlan(plan: HeadingInsertPlan): Promise<PatchOutcome> {
+    return this.applyHeadingInsertPlan(plan);
   }
 
   /** Flat OPC 内容统一进入 TrackAll + Content Control 事务管线。 */

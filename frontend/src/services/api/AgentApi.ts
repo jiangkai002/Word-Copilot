@@ -3,8 +3,8 @@
  *
  * - token：自然语言增量（流式气泡）
  * - proposal / proposal_format / proposal_table / proposal_formula /
- *   proposal_paragraph：五类修改提案（文本 / 字体段落格式 / 表格 / 公式 /
- *   纯文字段落），解析为 AgentProposal 判别联合（text 帧补 kind:"text"
+ *   proposal_paragraph / proposal_heading：六类修改提案（文本 / 格式 / 表格 /
+ *   公式 / 纯文字段落 / Word 标题），解析为 AgentProposal 判别联合（text 帧补 kind:"text"
  *   判别字段），收齐后逐条走编辑管线
  *
  * 插入类帧的 anchor_paragraph_id 可为 null（文档末尾）。
@@ -16,6 +16,7 @@
 import type {
   AgentFormatProposalEvent,
   AgentFormulaProposalEvent,
+  AgentHeadingProposalEvent,
   AgentParagraphProposalEvent,
   AgentProposal,
   AgentStreamRequestPayload,
@@ -131,6 +132,11 @@ export class AgentApi {
         if (this.isValidParagraphProposal(payload)) {
           callbacks.onProposal?.(payload);
         }
+      } else if (event === "proposal_heading") {
+        const payload = JSON.parse(raw) as AgentHeadingProposalEvent;
+        if (this.isValidHeadingProposal(payload)) {
+          callbacks.onProposal?.(payload);
+        }
       } else if (event === "error") {
         const payload = JSON.parse(raw) as SseErrorEvent;
         callbacks.onError?.(payload.code ?? "LLM_ERROR", payload.message ?? "模型调用出错");
@@ -177,6 +183,19 @@ export class AgentApi {
   /** proposal_paragraph 帧校验：非空 paragraph_text（anchor 可为 null = 文档末尾） */
   private isValidParagraphProposal(payload: AgentParagraphProposalEvent): boolean {
     return typeof payload.paragraph_text === "string" && payload.paragraph_text.trim().length > 0;
+  }
+
+  /** proposal_heading：非空单行标题 + Word 标题级别 1～9。 */
+  private isValidHeadingProposal(payload: AgentHeadingProposalEvent): boolean {
+    return (
+      payload.kind === "insert-heading" &&
+      typeof payload.heading_text === "string" &&
+      payload.heading_text.trim().length > 0 &&
+      !/[\r\n\v]/.test(payload.heading_text) &&
+      Number.isInteger(payload.level) &&
+      payload.level >= 1 &&
+      payload.level <= 9
+    );
   }
 }
 

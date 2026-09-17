@@ -113,10 +113,16 @@ export interface AgentProposalEvent {
   summary: string;
 }
 
-// ---- Agent 四类提案（proposal / proposal_format / proposal_table /
-// proposal_formula / proposal_paragraph 帧）----
+// ---- Agent 六类提案（proposal / proposal_format / proposal_table /
+// proposal_formula / proposal_paragraph / proposal_heading 帧）----
 
-export type ProposalKind = "text" | "format" | "insert-table" | "insert-formula" | "insert-paragraph";
+export type ProposalKind =
+  | "text"
+  | "format"
+  | "insert-table"
+  | "insert-formula"
+  | "insert-paragraph"
+  | "insert-heading";
 
 /** 文本提案（AgentApi 解析 proposal 帧时补 kind 判别字段） */
 export interface AgentTextProposalEvent extends AgentProposalEvent {
@@ -172,13 +178,22 @@ export interface AgentParagraphProposalEvent extends AgentInsertAnchorFields {
   paragraph_text: string;
 }
 
+/** Word 内置标题插入提案：level 对应标题 1～9。 */
+export interface AgentHeadingProposalEvent extends AgentInsertAnchorFields {
+  kind: "insert-heading";
+  summary: string;
+  heading_text: string;
+  level: number;
+}
+
 /** Agent 提案判别联合（edits.applyProposal 按 kind 分派） */
 export type AgentProposal =
   | AgentTextProposalEvent
   | AgentFormatProposalEvent
   | AgentTableProposalEvent
   | AgentFormulaProposalEvent
-  | AgentParagraphProposalEvent;
+  | AgentParagraphProposalEvent
+  | AgentHeadingProposalEvent;
 
 export interface SseAgentDoneEvent {
   usage?: {

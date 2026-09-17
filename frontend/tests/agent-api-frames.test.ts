@@ -1,6 +1,6 @@
 /**
- * AgentApi SSE 帧解析测试：五类提案帧（proposal / proposal_format /
- * proposal_table / proposal_formula / proposal_paragraph）→ AgentProposal
+ * AgentApi SSE 帧解析测试：六类提案帧（proposal / proposal_format /
+ * proposal_table / proposal_formula / proposal_paragraph / proposal_heading）→ AgentProposal
  * 判别联合；插入类 anchor 可为 null（文档末尾）；畸形提案帧丢弃；
  * error / token / done 帧语义不变。
  */
@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 describe("AgentApi.streamAgent 帧解析", () => {
-  it("五类提案帧依序触发 onProposal（text 帧补 kind 判别字段）", async () => {
+  it("六类提案帧依序触发 onProposal（text 帧补 kind 判别字段）", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -76,7 +76,17 @@ describe("AgentApi.streamAgent 帧解析", () => {
               summary: "插入文字",
             }),
           ),
-          frame("done", JSON.stringify({ proposal_count: 5 })),
+          frame(
+            "proposal_heading",
+            JSON.stringify({
+              kind: "insert-heading",
+              anchor_paragraph_id: "p1",
+              heading_text: "第一章 系统概述",
+              level: 1,
+              summary: "插入章标题",
+            }),
+          ),
+          frame("done", JSON.stringify({ proposal_count: 6 })),
         ]),
       ),
     );
@@ -100,6 +110,7 @@ describe("AgentApi.streamAgent 帧解析", () => {
       "insert-table",
       "insert-formula",
       "insert-paragraph",
+      "insert-heading",
     ]);
     expect(proposals[0]).toMatchObject({ kind: "text", paragraph_id: "p1", new_text: "新文" });
     expect(proposals[1]).toMatchObject({ kind: "format", paragraph_id: "p2", bold: true });
@@ -114,7 +125,8 @@ describe("AgentApi.streamAgent 帧解析", () => {
       paragraph_text: "第一段\n第二段",
       anchor_paragraph_id: "p1",
     });
-    expect(dones).toEqual([{ proposal_count: 5 }]);
+    expect(proposals[5]).toMatchObject({ kind: "insert-heading", heading_text: "第一章 系统概述", level: 1 });
+    expect(dones).toEqual([{ proposal_count: 6 }]);
   });
 
   it("插入类提案 anchor 为 null（文档末尾 / 空文档）仍为合法帧", async () => {
@@ -142,6 +154,16 @@ describe("AgentApi.streamAgent 帧解析", () => {
               summary: "插入文字",
             }),
           ),
+          frame(
+            "proposal_heading",
+            JSON.stringify({
+              kind: "insert-heading",
+              anchor_paragraph_id: null,
+              heading_text: "项目概述",
+              level: 1,
+              summary: "插入标题",
+            }),
+          ),
         ]),
       ),
     );
@@ -151,7 +173,7 @@ describe("AgentApi.streamAgent 帧解析", () => {
       { conversation_id: "c1", instruction: "x", snapshot: { outline: [], paragraphs: [], truncated: false } },
       { onProposal: (p) => proposals.push(p) },
     );
-    expect(proposals.map((p) => p.kind)).toEqual(["insert-table", "insert-paragraph"]);
+    expect(proposals.map((p) => p.kind)).toEqual(["insert-table", "insert-paragraph", "insert-heading"]);
     expect(proposals.every((p) => "anchor_paragraph_id" in p && p.anchor_paragraph_id === null)).toBe(true);
   });
 
@@ -181,6 +203,9 @@ describe("AgentApi.streamAgent 帧解析", () => {
             "proposal_paragraph",
             JSON.stringify({ kind: "insert-paragraph", anchor_paragraph_id: null, summary: "s" }),
           ),
+          frame("proposal_heading", JSON.stringify({ kind: "insert-heading", heading_text: "", level: 1, summary: "s" })),
+          frame("proposal_heading", JSON.stringify({ kind: "insert-heading", heading_text: "标题", level: 10, summary: "s" })),
+          frame("proposal_heading", JSON.stringify({ kind: "insert-heading", heading_text: "多行\n标题", level: 2, summary: "s" })),
           frame(
             "proposal_paragraph",
             JSON.stringify({ kind: "insert-paragraph", anchor_paragraph_id: null, paragraph_text: "   ", summary: "s" }),

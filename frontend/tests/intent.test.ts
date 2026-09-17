@@ -99,6 +99,10 @@ describe("isAgentToolIntent（格式 / 插入请求 → Agent 工具路由）", 
     ["随便写点什么", false], // 无标记词 → Agent 模式自会兜住，auto 下默认对话
     ["给我补充一段过渡文字", true],
     ["把这段后面新增段落说明", true],
+    ["在文档末尾创建一级标题", true],
+    ["添加一个二级小节标题", true],
+    ["创建标题章节", true],
+    ["新增章节‘实施方案’", true],
   ])("工具指令「%s」→ %s", (text, expected) => {
     expect(isAgentToolIntent(text)).toBe(expected);
   });
@@ -108,6 +112,7 @@ describe("isAgentToolIntent（格式 / 插入请求 → Agent 工具路由）", 
     ["公式是什么意思", false],
     ["怎么把这段加粗", false], // 含「怎么」
     ["这份文档的公式对吗", false],
+    ["标题章节怎么创建？", false],
     ["帮我润色这一段", false], // 纯文本编辑 → Edit 通道
     ["你好", false],
     ["", false],
@@ -133,6 +138,7 @@ describe("routeInput（模式开关）", () => {
   it("auto 模式：优先级 batch > agent-tool > edit > chat", () => {
     expect(routeInput("全文纠错", "auto")).toBe("agent");
     expect(routeInput("把这段加粗", "auto")).toBe("agent"); // agent-tool 命中
+    expect(routeInput("创建标题章节", "auto")).toBe("agent");
     expect(routeInput("帮我润色这一段", "auto")).toBe("edit");
     expect(routeInput("润色是什么意思？", "auto")).toBe("chat");
     expect(routeInput("表格怎么插入？", "auto")).toBe("chat"); // 疑问句不路由

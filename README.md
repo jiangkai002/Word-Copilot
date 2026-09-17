@@ -4,9 +4,10 @@ Word 任务窗格 AI 助手：在 Microsoft Word 中与 AI 对话（基于选区
 并让 AI 直接修改文档 —— 所有修改以 **Word 原生修订（Track Changes）** 写入，
 可逐条接受 / 拒绝 / 重新生成，与人工修订完全隔离。
 
-Agent 模式下 AI 除整段改写外，还可提交四类结构化提案（同样走修订与事务卡片管线）：
+Agent 模式下 AI 除整段改写外，还可提交五类结构化提案（同样走修订与事务卡片管线）：
 **字体 / 段落格式修改**（加粗、斜体、下划线、删除线、字体、字号、颜色、对齐）、
-**插入表格**（TableGrid 样式、表头行）、**插入数学公式**（LaTeX → OMML，Word
+**插入表格**（TableGrid 样式、表头行）、**插入 Word 标题章节**（标题 1～9，进入
+导航窗格与自动目录）、**插入数学公式**（LaTeX → OMML，Word
 原生公式对象，可双击编辑）、**插入纯文字段落**（换行分段）。插入类内容可落在
 锚点段之后或**文档末尾**（锚点可省略 —— 空文档也能直接生成内容）。
 
@@ -80,10 +81,11 @@ Agent 入口（「全文纠错」快捷命令 / 智能模式 isBatchIntent 或 i
             insert_table(anchor_paragraph_id?, values, header)（表格插入提案）
             insert_formula(anchor_paragraph_id?, latex, display)（公式插入提案）
             insert_paragraph(anchor_paragraph_id?, paragraph_text)（纯文字段落提案）
+            insert_heading(anchor_paragraph_id?, heading_text, level)（Word 标题 1～9）
             —— 插入类工具的 anchor 可省略（null = 插入到文档末尾，空文档可用）
             —— 锚点不能是表格单元格内段落（快照标注 in_table /「（表格内）」，
                校验拒绝并引导改用文档末尾 —— 防止内容写进单元格）
-        → SSE 双通道：token（回答流式气泡）+ 五类 proposal 帧
+        → SSE 双通道：token（回答流式气泡）+ 六类 proposal 帧
         → 流结束 → 逐条 proposalToCapturedTarget → applyProposal（按 kind 分派）：
             text   → §57 冲突检查 → 回显校验 → Diff → PatchEngine → 事务卡片
             format → 冲突检查 → FormatEngine（原值快照 + 软校验）→ 事务卡片
@@ -91,6 +93,8 @@ Agent 入口（「全文纠错」快捷命令 / 智能模式 isBatchIntent 或 i
             insert-formula→ LaTeX→OMML→Flat OPC → 先登记卡片 → TrackAll + CC 写入修订
             insert-paragraph→ 换行分段；若含 $LaTeX$ 则生成 w:r + m:oMath 富段落；
                               先登记卡片 → TrackAll + CC 写入修订
+            insert-heading→ Heading1～Heading9 内置样式；进入导航窗格 / 自动目录；
+                            先登记卡片 → TrackAll + CC 写入修订
             （插入类 anchor 为 null 时走 Body.insert*("End") —— 无锚点定位/哈希校验）
         → N 张编辑卡片，逐条接受 / 拒绝（所有类型均以 Word 修订写入，按 kind
           分派接受 / 拒绝 / 对账 —— 见 RevisionService）
@@ -335,7 +339,7 @@ BACKEND_CORS_ORIGINS=https://your-addin-origin.example.com
    全部丢弃，文档无任何变化（§58）
 5. 换 `02-heading-document.docx` 问「各章讲什么」→ 验证纯问答（只读工具 + 回答，零卡片）
 
-**测试 6 —— Agent 格式 / 表格 / 公式 / 段落提案（四类结构化能力）**
+**测试 6 —— Agent 格式 / 表格 / 公式 / 段落 / 标题提案（五类结构化能力）**
 
 1. 用 Word 打开任意含多段文字的文档（如 `07-chinese-document.docx`）
 2. 任务窗格模式切到「**Agent**」，输入：
@@ -401,7 +405,7 @@ backend/           FastAPI（无数据库）
   app/llm/              LLMProvider → OpenAICompatibleProvider
   app/prompts/          chat.md / edit.md / agent.md（§36 规则 + 提案纪律）
   app/models/           chat / edit / agent（Pydantic 请求与事件模型）
-  tests/                pytest 纯函数单测（提案校验 / 快照渲染 / 四类提案工具）
+  tests/                pytest 纯函数单测（提案校验 / 快照渲染 / 五类结构化提案工具）
 test-documents/    §67 的 8 个测试 docx（tools/generate_test_documents.py 生成）
 tools/             测试文档生成脚本
 ```
@@ -480,7 +484,7 @@ manifest 中任务窗格地址固定为 `https://localhost:3000`（端口写死�
 
 **Q11：Agent 模式和普通修改有什么区别？会绕过安全机制吗？**
 Agent（Microsoft Agent Framework）面向多目标任务：读全文快照、调用只读工具
-（get_outline / read_paragraph / search_paragraphs）回答问题，并通过五类提案工具
+（get_outline / read_paragraph / search_paragraphs）回答问题，并通过六类提案工具
 （propose_edit / propose_format / insert_table / insert_formula / insert_paragraph）
 提交批量提案。
 **不会绕过任何安全机制**——LLM 永远碰不到 Word：每条提案由前端独立走

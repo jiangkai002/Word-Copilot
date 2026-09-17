@@ -12,6 +12,7 @@ from app.models.agent import (
     AgentParagraph,
     FormulaProposalEvent,
     FormatProposalEvent,
+    HeadingProposalEvent,
     ParagraphProposalEvent,
     ProposalEvent,
     TableProposalEvent,
@@ -20,6 +21,7 @@ from app.models.agent import DocumentSnapshotPayload
 from app.services.agent_service import (
     validate_formula_proposal,
     validate_format_proposal,
+    validate_heading_proposal,
     validate_paragraph_proposal,
     validate_proposal,
     validate_table_proposal,
@@ -425,6 +427,43 @@ def test_paragraph_event_length_rejected() -> None:
         ParagraphProposalEvent(paragraph_text="", summary="x")
     with pytest.raises(ValidationError):
         ParagraphProposalEvent(paragraph_text="字" * 2001, summary="x")
+
+
+@pytest.mark.parametrize("level", [1, 2, 3, 9])
+def test_heading_proposal_valid(level: int) -> None:
+    assert validate_heading_proposal(_snapshot(), None, "系统概述", level, 0) is None
+    assert validate_heading_proposal(_snapshot(), "p1", "系统概述", level, 0) is None
+
+
+@pytest.mark.parametrize("level", [0, 10, 1.5, True, "1"])
+def test_heading_proposal_rejects_invalid_level(level: object) -> None:
+    error = validate_heading_proposal(_snapshot(), None, "系统概述", level, 0)
+    assert error is not None and "1-9" in error
+
+
+def test_heading_proposal_rejects_blank_multiline_and_table_anchor() -> None:
+    assert "非空" in (validate_heading_proposal(_snapshot(), None, "   ", 1, 0) or "")
+    assert "不能换行" in (validate_heading_proposal(_snapshot(), None, "第一章\n说明", 1, 0) or "")
+    table_snapshot = DocumentSnapshotPayload(
+        paragraphs=[AgentParagraph(id="cell", text="单元格", in_table=True)]
+    )
+    assert "表格单元格" in (
+        validate_heading_proposal(table_snapshot, "cell", "表内标题", 2, 0) or ""
+    )
+
+
+def test_heading_event_serialization() -> None:
+    event = HeadingProposalEvent(
+        anchor_paragraph_id="p1",
+        anchor_text="锚点原文",
+        heading_text="第一章 系统概述",
+        level=1,
+        summary="插入章标题",
+    )
+    data = event.model_dump()
+    assert data["kind"] == "insert-heading"
+    assert data["heading_text"] == "第一章 系统概述"
+    assert data["level"] == 1
 
 
 def test_text_event_has_no_kind_field() -> None:

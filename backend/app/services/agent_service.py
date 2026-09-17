@@ -36,6 +36,7 @@ from ..models.agent import (
     DocumentSnapshotPayload,
     FormulaProposalEvent,
     FormatProposalEvent,
+    HeadingProposalEvent,
     ParagraphProposalEvent,
     ProposalEvent,
     TableProposalEvent,
@@ -66,6 +67,7 @@ _TABLE_CELL_MAX_LENGTH = 200
 _MAX_LATEX_LENGTH = 500
 _MAX_PARAGRAPH_INSERT_LENGTH = 2000
 _MAX_PARAGRAPH_INSERT_LINES = 20
+_MAX_HEADING_LENGTH = 300
 
 _FORMULA_TEXT_REQUEST_RE = re.compile(r"解释|说明|含义|意义|推导|介绍|一段话|一段文字|正文")
 _FORMULA_TEXT_NEGATION_RE = re.compile(
@@ -131,6 +133,7 @@ AgentEvent = (
     | TableProposalEvent
     | FormulaProposalEvent
     | ParagraphProposalEvent
+    | HeadingProposalEvent
     | DoneEvent
 )
 
@@ -220,7 +223,7 @@ def _validate_insert_anchor(
     *,
     max_proposals: int | None = None,
 ) -> tuple[AgentParagraph | None, str | None]:
-    """插入类（表格 / 公式 / 段落）共用的锚点校验。
+    """插入类（表格 / 公式 / 段落 / 标题）共用的锚点校验。
 
     anchor 为 None / 缺省 = 插入到文档末尾（空文档也可插入，无需锚点）；
     显式锚点须为字符串且对应快照中存在、非空、且不在表格单元格内的段落
@@ -401,6 +404,32 @@ def validate_paragraph_proposal(
     return None
 
 
+def validate_heading_proposal(
+    snapshot: DocumentSnapshotPayload,
+    anchor_paragraph_id: object,
+    heading_text: object,
+    level: object,
+    proposal_count: int,
+    *,
+    max_proposals: int | None = None,
+) -> str | None:
+    """校验 Word 标题插入提案；标题必须为单段，级别为 1～9。"""
+    _, anchor_error = _validate_insert_anchor(
+        snapshot, anchor_paragraph_id, proposal_count, max_proposals=max_proposals
+    )
+    if anchor_error:
+        return anchor_error
+    if not isinstance(heading_text, str) or not heading_text.strip():
+        return "heading_text 必须是非空的标题文字"
+    if len(heading_text) > _MAX_HEADING_LENGTH:
+        return f"heading_text 不能超过 {_MAX_HEADING_LENGTH} 个字符"
+    if any(mark in heading_text for mark in ("\r", "\n", "\v")):
+        return "heading_text 只能包含一个段落，不能换行"
+    if isinstance(level, bool) or not isinstance(level, int) or not 1 <= level <= 9:
+        return "level 必须是 1-9 的整数（对应 Word 标题 1-9）"
+    return None
+
+
 def render_outline(snapshot: DocumentSnapshotPayload) -> str:
     """大纲渲染（纯函数）。"""
     if not snapshot.outline:
@@ -546,6 +575,7 @@ async def run_agent_stream(request: AgentStreamRequest) -> AsyncIterator[AgentEv
         | TableProposalEvent
         | FormulaProposalEvent
         | ParagraphProposalEvent
+        | HeadingProposalEvent
     ] = []
     tool_calls = {"count": 0}
     queue: asyncio.Queue[AgentEvent | _ErrorSentinel | None] = asyncio.Queue()
@@ -821,6 +851,48 @@ async def run_agent_stream(request: AgentStreamRequest) -> AsyncIterator[AgentEv
             "继续处理，完成后请总结。"
         )
 
+    @tool(approval_mode="never_require")
+    def insert_heading(
+        anchor_paragraph_id: str | None,
+        heading_text: str,
+        level: int,
+        summary: str,
+    ) -> str:
+        """插入真正的 Word 内置标题段落，可进入导航窗格和自动目录。
+
+        Args:
+            anchor_paragraph_id: 锚点段落 id，标题插入到该段之后；省略或 null = 插入到文档末尾。
+            heading_text: 单行标题文字，不包含换行。
+            level: 标题级别 1-9；1 为章标题，2/3 为下级章节。
+            summary: 一句话说明，不超过 30 字。
+        """
+        budget = _check_budget()
+        if budget:
+            return budget
+        error = validate_heading_proposal(
+            snapshot, anchor_paragraph_id, heading_text, level, len(pending)
+        )
+        if error:
+            return f"提案被拒绝：{error}"
+        anchor = find_paragraph(snapshot, anchor_paragraph_id) if anchor_paragraph_id else None
+        try:
+            pending.append(
+                HeadingProposalEvent(
+                    anchor_paragraph_id=anchor_paragraph_id,
+                    anchor_text=anchor.text if anchor else "",
+                    heading_text=heading_text.strip(),
+                    level=level,
+                    summary=summary.strip() or f"插入标题 {level}",
+                )
+            )
+        except ValidationError as exc:
+            return f"提案被拒绝：参数无效（{exc.errors()[0].get('msg', '格式错误')}）"
+        where = f"锚点段落 {anchor_paragraph_id} 之后" if anchor_paragraph_id else "文档末尾"
+        return (
+            f"已记录第 {len(pending)} 条标题提案（标题 {level}，插入到{where}）。"
+            "继续处理，完成后请总结。"
+        )
+
     client = OpenAIChatCompletionClient(
         base_url=config.LLM_BASE_URL,
         api_key=config.LLM_API_KEY,
@@ -830,7 +902,7 @@ async def run_agent_stream(request: AgentStreamRequest) -> AsyncIterator[AgentEv
     # 之前在工具内部拒绝会让模型反复重试 insert_formula，最终触发
     # Function invocation limit；从工具集合中移除后，模型只能用支持
     # $LaTeX$ 富段落的 insert_paragraph，一次提交完整内容。
-    mutation_tools = [propose_edit, propose_format, insert_table, insert_paragraph]
+    mutation_tools = [propose_edit, propose_format, insert_table, insert_paragraph, insert_heading]
     if not formula_with_text:
         mutation_tools.insert(3, insert_formula)
 

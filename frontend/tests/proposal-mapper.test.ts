@@ -215,6 +215,15 @@ describe("proposalTargetId", () => {
         summary: "",
       }),
     ).toBe("p1");
+    expect(
+      proposalTargetId({
+        kind: "insert-heading",
+        anchor_paragraph_id: "p2",
+        heading_text: "新增小节",
+        level: 2,
+        summary: "",
+      }),
+    ).toBe("p2");
   });
 
   it("insert-* 的文档末尾模式 → null（anchor 为 null 或缺省）", () => {
@@ -233,6 +242,15 @@ describe("proposalTargetId", () => {
         header: true,
         values: [["a"]],
       } as unknown as import("@/models/Api").AgentTableProposalEvent),
+    ).toBeNull();
+    expect(
+      proposalTargetId({
+        kind: "insert-heading",
+        anchor_paragraph_id: null,
+        heading_text: "第一章",
+        level: 1,
+        summary: "",
+      }),
     ).toBeNull();
   });
 });

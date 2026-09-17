@@ -22,6 +22,7 @@ const KIND_LABELS: Record<TransactionKind, string> = {
   "insert-table": "AI 表格",
   "insert-formula": "AI 公式",
   "insert-paragraph": "AI 段落",
+  "insert-heading": "AI 标题",
 };
 
 const kindLabel = computed(() => (tx.value ? KIND_LABELS[tx.value.kind] : ""));
@@ -262,6 +263,12 @@ const paragraphPreview = computed(() => {
       <div v-if="paragraphPreview.truncated" class="paragraph-more">
         …（共 {{ paragraphPreview.total }} 段，插入后查看完整内容）
       </div>
+    </div>
+
+    <!-- 标题卡片：显示 Word 内置标题级别 -->
+    <div v-if="tx.kind === 'insert-heading'" class="paragraph-preview heading-preview">
+      <strong>标题 {{ tx.headingLevel }}</strong>
+      <p>{{ tx.headingText }}</p>
     </div>
 
     <div class="card-meta">

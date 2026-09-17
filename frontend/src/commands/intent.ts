@@ -12,7 +12,7 @@
  *
  * Agent 通道（§51）：批量范围标记（全文/整篇/批量…）+ 编辑或检查类动词
  * → isBatchIntent；格式 / 插入类请求（加粗、改字体、插入表格、插入公式…）
- * → isAgentToolIntent（Agent 的四类工具独占能力，Edit 通道无法完成）。
+ * → isAgentToolIntent（Agent 的格式与结构化插入能力，Edit 通道无法完成）。
  * 路由优先级 batch > agent-tool > edit > chat。
  *
  * 模式开关覆盖启发式：用户可显式选择「对话」（仅聊天）或「Agent」
@@ -112,7 +112,7 @@ const FORMAT_MARKERS: readonly string[] = [
   "格式",
 ];
 
-/** 插入标记：insert_table / insert_formula / insert_paragraph 能力（短词覆盖其长组合） */
+/** 插入标记：表格 / 公式 / 段落 / Word 标题能力（短词覆盖其长组合） */
 const INSERT_MARKERS: readonly string[] = [
   "插入表格",
   "画表格",
@@ -128,14 +128,27 @@ const INSERT_MARKERS: readonly string[] = [
   "写上",
   "补充一段",
   "新增段落",
+  "插入标题",
+  "新增标题",
+  "添加标题",
+  "创建标题",
+  "插入章节",
+  "新增章节",
+  "添加章节",
+  "创建章节",
+  "标题章节",
+  "一级标题",
+  "二级标题",
+  "三级标题",
+  "小节标题",
 ];
 
 /**
  * 判断自由输入是否为 Agent 工具意图（格式修改 / 插入表格 / 插入公式 /
- * 插入纯文字段落）。
+ * 插入纯文字段落 / Word 标题章节）。
  * 这些能力只有 Agent 通道具备（Edit 管线是纯文本替换）—— auto 模式下
  * 直接路由到 agent，让模型调 propose_format / insert_table /
- * insert_formula / insert_paragraph。
+ * insert_formula / insert_paragraph / insert_heading。
  * 疑问句 → false（「表格怎么插入？」是对话）。
  * 例：「把这段加粗」「把标题改成微软雅黑」「在第二段后插入 3x2 表格」
  * 「帮我写一段产品介绍」。

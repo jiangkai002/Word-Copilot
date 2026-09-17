@@ -34,6 +34,7 @@ const KIND_LABELS: Record<ProposalKind, string> = {
   "insert-table": "表格",
   "insert-formula": "公式",
   "insert-paragraph": "段落",
+  "insert-heading": "标题",
 };
 
 export const useAgentStore = defineStore("agent", () => {
@@ -87,8 +88,8 @@ export const useAgentStore = defineStore("agent", () => {
 
     const charCount = snapshot.paragraphs.reduce((sum, p) => sum + p.text.length, 0);
     if (snapshot.paragraphs.length === 0) {
-      // 空文档：无内容可读，但仍可在文档末尾插入新内容（表格 / 公式 / 段落）
-      chatStore.addSystem("文档为空：AI 没有可参考的文档内容，可直接对话，也可让 AI 在文档末尾写入新内容（表格 / 公式 / 文字段落）。");
+      // 空文档：无内容可读，但仍可在文档末尾插入新内容（标题 / 表格 / 公式 / 段落）
+      chatStore.addSystem("文档为空：AI 没有可参考的文档内容，可直接对话，也可让 AI 在文档末尾写入新内容（标题 / 表格 / 公式 / 文字段落）。");
     } else {
       chatStore.addSystem(
         `已读取全文 ${snapshot.paragraphs.length} 段（约 ${charCount} 字）` +

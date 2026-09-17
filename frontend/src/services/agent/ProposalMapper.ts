@@ -1,9 +1,9 @@
 /**
  * 提案 → CapturedTarget 映射（§51，纯函数，供单测）。
  *
- * Agent 提案（五类判别联合）：
+ * Agent 提案（六类判别联合）：
  * - text / format：paragraph_id 指向目标段落（改文字 / 改格式都作用于该段）
- * - insert-table / insert-formula / insert-paragraph：anchor_paragraph_id
+ * - insert-table / insert-formula / insert-paragraph / insert-heading：anchor_paragraph_id
  *   指向锚点段落（内容插其后）；anchor 为 null / 缺省 = 文档末尾（无目标段）
  *
  * 各类提案均从快照段落重新构造与 captureEditTarget 段落模式完全一致的
