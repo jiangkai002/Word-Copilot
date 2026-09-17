@@ -40,6 +40,8 @@ export function countOccurrences(hay: string, needle: string): number {
  * “前方锚点” [p-len, p) 中的操作均未应用，天然安全，仅按长度截取。
  *
  * 返回的窗口均为单行（不含 \n），与 Word search 的可搜索形式一致。
+ * 相邻操作可能只留下 1 个字符的安全窗口；调用方必须允许单字符锚点，
+ * 再通过原文中的精确出现序号消歧。
  */
 export function insertAnchorWindow(
   original: string,

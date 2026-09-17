@@ -51,7 +51,7 @@ function simulateApply(original: string, ops: EditOperation[]): { final: string;
 
     // insert
     const { following, preceding } = insertAnchorWindow(original, op, ops, ANCHOR_LENGTH);
-    if (following.length >= 2) {
+    if (following.length >= 1) {
       const occurrence = countOccurrencesBefore(original, following, op.start);
       const idx = nthIndexOf(text, following, occurrence);
       if (idx >= 0) {
@@ -59,7 +59,7 @@ function simulateApply(original: string, ops: EditOperation[]): { final: string;
         continue;
       }
     }
-    if (preceding && preceding.length >= 2) {
+    if (preceding.length >= 1) {
       const occurrence = Math.max(0, countOccurrencesBefore(original, preceding, op.start) - 1);
       const idx = nthIndexOf(text, preceding, occurrence);
       if (idx >= 0) {
@@ -131,5 +131,17 @@ describe("PatchEngine 应用模拟（真实润色操作序列）", () => {
     const { final, skipped } = simulateApply(original, ops);
     expect(skipped).toEqual([]);
     expect(final).toBe("单词A这个词单词B出现了三次这个词。共计");
+  });
+
+  it("相邻操作只留下单字符锚点时仍能应用插入", () => {
+    const original = "步骤1.2 统一BIM坐标系";
+    const ops: EditOperation[] = [
+      { type: "insert", start: 0, end: 0, oldText: "", newText: "（一）" },
+      { type: "replace", start: 1, end: 2, oldText: "骤", newText: "阶段" },
+    ];
+
+    const { final, skipped } = simulateApply(original, ops);
+    expect(skipped).toEqual([]);
+    expect(final).toBe("（一）步阶段1.2 统一BIM坐标系");
   });
 });

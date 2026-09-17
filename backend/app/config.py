@@ -33,6 +33,13 @@ def _get_int(key: str, default: int) -> int:
         return default
 
 
+def _get_bool(key: str, default: bool) -> bool:
+    raw = _get_str(key)
+    if not raw:
+        return default
+    return raw.lower() in {"1", "true", "yes", "on"}
+
+
 def _get_origins(key: str, default: list[str]) -> list[str]:
     raw = _get_str(key, ",".join(default))
     return [origin.strip() for origin in raw.split(",") if origin.strip()]
@@ -59,6 +66,18 @@ BACKEND_CORS_ORIGINS: list[str] = _get_origins(
     "BACKEND_CORS_ORIGINS",
     ["http://localhost:3000", "https://localhost:3000"],
 )
+
+# ---- 本地日志 ----
+_log_dir_value = Path(_get_str("LOG_DIR", "logs"))
+LOG_DIR: Path = (
+    _log_dir_value if _log_dir_value.is_absolute() else _BACKEND_ROOT / _log_dir_value
+).resolve()
+LOG_LEVEL: str = _get_str("LOG_LEVEL", "INFO").upper()
+LOG_MAX_BYTES: int = _get_int("LOG_MAX_BYTES", 10 * 1024 * 1024)
+LOG_BACKUP_COUNT: int = _get_int("LOG_BACKUP_COUNT", 5)
+CONVERSATION_LOG_ENABLED: bool = _get_bool("CONVERSATION_LOG_ENABLED", True)
+CONVERSATION_LOG_INCLUDE_CONTENT: bool = _get_bool("CONVERSATION_LOG_INCLUDE_CONTENT", True)
+CONVERSATION_LOG_MAX_TEXT_CHARS: int = _get_int("CONVERSATION_LOG_MAX_TEXT_CHARS", 20_000)
 
 
 def llm_configured() -> bool:

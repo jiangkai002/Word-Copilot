@@ -205,7 +205,7 @@ export class PatchEngine {
     // ---- insert：锚定邻接等文本 ----
     // 优先锚定后方文本（插入到匹配之前）
     const { following, preceding } = insertAnchorWindow(canonicalOriginal, op, allOps, ANCHOR_LENGTH);
-    if (following.length >= 2) {
+    if (following.length >= 1) {
       const occurrence = countOccurrencesBefore(canonicalOriginal, following, op.start);
       const outcome = await this.pickMatch(ctx, ctrlRange, toWordText(following), occurrence);
       if (outcome) {
@@ -214,7 +214,7 @@ export class PatchEngine {
       }
     }
     // 锚定前方文本（插入到匹配之后）
-    if (preceding && preceding.length >= 2) {
+    if (preceding.length >= 1) {
       // 目标是 [0, op.start) 内最后一个匹配（锚点本身）
       const occurrence = Math.max(0, countOccurrencesBefore(canonicalOriginal, preceding, op.start) - 1);
       const outcome = await this.pickMatch(ctx, ctrlRange, toWordText(preceding), occurrence);
@@ -239,9 +239,10 @@ export class PatchEngine {
       const matches = scope.search(anchor, { matchCase: true });
       matches.load("text");
       await ctx.sync();
-      if (matches.items.length === 0) return null;
-      const idx = Math.min(occurrence, matches.items.length - 1);
-      return matches.items[idx];
+      // occurrence 是按原文计算出的精确序号。候选不足时绝不能退回最后一个
+      // 匹配，否则会把相同短语的另一处内容误改，随后只能靠最终校验回滚。
+      if (occurrence < 0 || occurrence >= matches.items.length) return null;
+      return matches.items[occurrence];
     } catch (err) {
       logger.debug("锚点搜索失败：", err);
       return null;
@@ -259,11 +260,30 @@ export class PatchEngine {
     control: Word.ContentControl,
     plan: EditPlan,
   ): Promise<VerifyFailure | null> {
+    const expectedFinal = normalizeText(plan.newText).replace(/[\n\r\v]+$/, "");
     const range = control.getRange(Word.RangeLocation.content);
+
+    // WordApi 1.4+ 可直接取得“接受全部修订后”的当前版本文本。这比 range.text
+    // 稳定：后者受 Word 的修订显示模式影响，可能同时包含删除和插入内容，且多个
+    // replace 的旧/新顺序不一定一致。本应用的修订能力门槛是 WordApi 1.6。
+    try {
+      const reviewed = range.getReviewedText(Word.ChangeTrackingVersion.current);
+      await ctx.sync();
+      const finalText = normalizeText(reviewed.value).replace(/[\n\r\v]+$/, "");
+      if (finalText === expectedFinal) return null;
+      return {
+        final: finalText,
+        expectedFinal,
+        expectedMarkup: "",
+      };
+    } catch (err) {
+      // 防御性兼容异常宿主：退回旧版的 range.text 多视图判断。
+      logger.debug("getReviewedText 校验失败，退回 range.text：", err);
+    }
+
     range.load("text");
     await ctx.sync();
     const finalText = normalizeText(range.text).replace(/[\n\r\v]+$/, "");
-    const expectedFinal = normalizeText(plan.newText).replace(/[\n\r\v]+$/, "");
     if (finalText === expectedFinal) return null;
 
     const expectedMarkup = normalizeText(this.buildMarkupExpectation(plan, "old-first")).replace(

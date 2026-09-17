@@ -44,7 +44,7 @@ import { WordService } from "@/services/word/WordService";
 import { editControlTag, nextTransactionId } from "@/utils/id";
 import { CopilotError, toCopilotError } from "@/utils/errors";
 import { normalizeEqual } from "@/utils/text";
-import { logger } from "@/utils/logger";
+import { logger, setLogConversationId } from "@/utils/logger";
 import { useChatStore } from "./chat";
 import { useDocumentStore } from "./document";
 
@@ -142,6 +142,7 @@ export const useEditStore = defineStore("edits", () => {
   async function sendEdit(instruction: string): Promise<void> {
     const chatStore = useChatStore();
     const documentStore = useDocumentStore();
+    setLogConversationId(chatStore.conversationId);
 
     if (working.value) {
       chatStore.addSystem("正在处理上一个修改，请稍候。");

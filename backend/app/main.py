@@ -14,14 +14,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import config
-from .api import agent, chat, edit, meta, skills
+from .api import agent, chat, client_logs, edit, meta, skills
 from .errors import BackendHTTPError
 from .llm.base import LLMError, LLMTimeoutError
+from .logging_config import setup_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
-)
+setup_logging()
 logger = logging.getLogger("word-ai-backend")
 
 app = FastAPI(title="Word AI Copilot Backend", version=config.APP_VERSION)
@@ -38,18 +36,25 @@ if config.BACKEND_CORS_ORIGINS:
 
 @app.middleware("http")
 async def request_logging(request: Request, call_next):
-    """记录 request_id / 路径 / 状态 / 时延（§59：不记录文档正文）。"""
+    """记录 request_id / 路径 / 状态 / 时延；未处理异常也写入本地日志。"""
     request_id = uuid.uuid4().hex[:12]
+    request.state.request_id = request_id
     started = time.perf_counter()
-    response = await call_next(request)
-    latency_ms = (time.perf_counter() - started) * 1000
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception(
+            "request_id=%s %s %s -> 500 %.1fms",
+            request_id,
+            request.method,
+            request.url.path,
+            (time.perf_counter() - started) * 1000,
+        )
+        raise
     logger.info(
         "request_id=%s %s %s -> %d %.1fms",
-        request_id,
-        request.method,
-        request.url.path,
-        response.status_code,
-        latency_ms,
+        request_id, request.method, request.url.path, response.status_code,
+        (time.perf_counter() - started) * 1000,
     )
     response.headers["X-Request-ID"] = request_id
     return response
@@ -92,3 +97,4 @@ app.include_router(chat.router)
 app.include_router(edit.router)
 app.include_router(agent.router)
 app.include_router(skills.router)
+app.include_router(client_logs.router)

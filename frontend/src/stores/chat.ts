@@ -11,7 +11,7 @@ import type { ChatMode } from "@/commands/intent";
 import { chatApi } from "@/services/api/ChatApi";
 import { uuid } from "@/utils/id";
 import { toCopilotError } from "@/utils/errors";
-import { logger } from "@/utils/logger";
+import { logger, setLogConversationId } from "@/utils/logger";
 import { useDocumentStore } from "./document";
 
 const MAX_HISTORY = 10;
@@ -81,6 +81,7 @@ export const useChatStore = defineStore("chat", () => {
     const message = text.trim();
     if (!message || streaming.value) return;
     const documentStore = useDocumentStore();
+    setLogConversationId(conversationId.value);
 
     const context = await documentStore.buildDocumentContext(message);
     // 先取历史再 push —— 历史不含本次用户消息
@@ -145,6 +146,7 @@ export const useChatStore = defineStore("chat", () => {
     if (streaming.value) stop();
     messages.value = [];
     conversationId.value = uuid();
+    setLogConversationId(conversationId.value);
   }
 
   return {

@@ -244,8 +244,13 @@ BACKEND_CORS_ORIGINS=https://your-addin-origin.example.com
 - **前端单测**：`cd frontend && npm run test`（Diff / 定位 / 哈希 / 匹配算法 /
   LaTeX→OMML 转换链 / SSE 帧解析 / 意图路由 / 对账模式判定）
 - **类型检查**：`npm run typecheck`
-- **后端**：uvicorn 控制台直接看日志（request_id / conversation_id /
-  latency / token usage；**不会**打印文档正文）。
+- **后端运行日志**：除控制台外，还会写入 `backend/logs/backend.log`，包含
+  request_id、conversation_id、latency、异常堆栈等。
+- **对话审计日志**：每次 chat / agent / edit 调用及 Word 任务窗格的 warn/error
+  会写入 `backend/logs/conversations.jsonl`。每行是一条 JSON，包含请求、模型输出、
+  提案、耗时、usage 和失败信息；文件自动轮转。`backend/logs/` 已被 Git 忽略。
+  默认记录正文以方便本地复现；如不希望保存正文，在 `.env` 设置
+  `CONVERSATION_LOG_INCLUDE_CONTENT=false`。
   Swagger UI：`http://localhost:8100/docs`
 - **SSE 快速验证**：
   `curl -N -X POST http://localhost:8100/api/v1/chat/stream -H "Content-Type: application/json" -d "{\"conversation_id\":\"t\",\"message\":\"你好\"}"`

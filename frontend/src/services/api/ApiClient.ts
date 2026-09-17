@@ -4,12 +4,14 @@
  * 统一错误格式（§45）：{ error: { code, message } }
  */
 import { CopilotError, type ErrorCode } from "@/utils/errors";
+import { setLogBaseUrl } from "@/utils/logger";
 import type { ApiErrorPayload } from "@/models/Api";
 
 let baseUrl = "";
 
 export function setApiBaseUrl(url: string): void {
   baseUrl = url.replace(/\/+$/, "");
+  setLogBaseUrl(baseUrl);
 }
 
 export function getApiBaseUrl(): string {

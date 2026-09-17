@@ -24,7 +24,7 @@ async function httpsServerOptions(): Promise<Record<string, unknown> | undefined
   } catch (err) {
     console.warn(
       "[vite] office-addin-dev-certs 不可用（尚未 npm install？），开发服务器暂时使用 HTTP。" +
-        "请先执行 npm install && npm run dev-certs，否则 Word 无法加载 https://localhost:3000 的任务窗格。",
+      "请先执行 npm install && npm run dev-certs，否则 Word 无法加载 https://localhost:3000 的任务窗格。",
     );
     return undefined;
   }
@@ -42,10 +42,10 @@ export default defineConfig(async () => ({
     strictPort: true,
     https: await httpsServerOptions(),
     // 开发阶段把 /api 反向代理到本地 FastAPI，任务窗格(https)不会遇到混合内容问题
-    // 端口 8100：本机 8000 常被其他服务占用（可用环境变量 BACKEND_PORT 覆盖）
+    // 默认端口与 backend/run.py 一致；可用环境变量 BACKEND_PORT 覆盖
     proxy: {
       "/api": {
-        target: `http://localhost:${process.env.BACKEND_PORT ?? 8100}`,
+        target: `http://localhost:${process.env.BACKEND_PORT ?? "8000"}`,
         changeOrigin: false,
       },
     },

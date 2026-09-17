@@ -18,6 +18,7 @@ backend/data/skills.json.tmp
 
 # 本地运行日志与公式兼容性调试产物
 *.log
+backend/logs/
 frontend/*.tmp.*
 frontend/com-test.tmp/
 

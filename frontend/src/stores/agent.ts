@@ -23,7 +23,7 @@ import { resolveFocus } from "@/services/agent/FocusResolver";
 import { documentService } from "@/services/word/DocumentService";
 import { selectionService } from "@/services/word/SelectionService";
 import { toCopilotError } from "@/utils/errors";
-import { logger } from "@/utils/logger";
+import { logger, setLogConversationId } from "@/utils/logger";
 import { useChatStore } from "./chat";
 import { useDocumentStore } from "./document";
 import { useEditStore } from "./edits";
@@ -50,6 +50,7 @@ export const useAgentStore = defineStore("agent", () => {
     const chatStore = useChatStore();
     const documentStore = useDocumentStore();
     const editsStore = useEditStore();
+    setLogConversationId(chatStore.conversationId);
 
     if (working.value || chatStore.streaming || editsStore.working) {
       chatStore.addSystem("正在处理上一个任务，请稍候。");
