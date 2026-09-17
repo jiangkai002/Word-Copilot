@@ -4,14 +4,51 @@ Word 任务窗格 AI 助手：在 Microsoft Word 中与 AI 对话（基于选区
 并让 AI 直接修改文档 —— 所有修改以 **Word 原生修订（Track Changes）** 写入，
 可逐条接受 / 拒绝 / 重新生成，与人工修订完全隔离。
 
-Agent 模式下 AI 除整段改写外，还可提交五类结构化提案（同样走修订与事务卡片管线）：
-**字体 / 段落格式修改**（加粗、斜体、下划线、删除线、字体、字号、颜色、对齐）、
-**插入表格**（TableGrid 样式、表头行）、**插入 Word 标题章节**（标题 1～9，进入
-导航窗格与自动目录）、**插入数学公式**（LaTeX → OMML，Word
-原生公式对象，可双击编辑）、**插入纯文字段落**（换行分段）。插入类内容可落在
-锚点段之后或**文档末尾**（锚点可省略 —— 空文档也能直接生成内容）。
+## 为什么开发这个插件
 
-## 核心原则
+市面上的 Word AI 插件大多是「生成 → 粘贴」式的，用起来总有几个绕不开的问题：
+
+- **改了什么看不清**：AI 直接替换整段甚至整篇内容，用户面对一整块新文本，
+  不知道哪里被动了；想只采纳一半，只能手工比对。
+- **出错不可逆**：有的工具让模型输出 OOXML 或整段重写后直接覆盖文档。模型
+  幻觉、漏内容、破坏格式时，损失无法挽回 —— 而 LLM 恰恰是会出错的。
+- **信任边界缺失**：AI 修改与人工修订混在一起，接受 AI 的改动可能顺带把
+  自己或同事的修订一起吞掉。
+- **隐私一刀切**：为了「全文档理解」，无论任务大小都整篇上传 —— 哪怕只是
+  要润色选中的一句话。
+
+本项目想回答一个问题：**AI 能不能像一个人类协作者那样改 Word 文档？**
+人类协作者的规范早就存在 —— Word 修订（Track Changes）：改哪里一目了然、
+逐条接受或拒绝、不动别人的修订。Word AI Copilot 把 AI 的编辑权约束进同一套规范：
+
+- AI 的每次修改都以 **Word 原生修订** 写入，与人工修订完全隔离
+- 每次修改是一个独立事务（编辑卡片），逐条接受 / 拒绝 / 重新生成
+- 应用前做乐观锁校验，文档已变化就拒绝 —— **绝不静默覆盖**
+- **LLM 永远碰不到 Word 对象**：模型只产出文本计划，写入由前端校验管线执行
+- 只发送任务所需内容，聊天区明示 AI 读取了什么
+
+## 它能做什么
+
+**对话**：基于选区 / 段落 / 章节 / 全文上下文与 AI 交流，不改文档。
+
+**单段修改（Edit 通道）**：对选中文字做润色 / 专业化 / 纠错 / 翻译并替换等，
+走 `原文本 + 新文本` 的 Diff 管线。
+
+**Agent 模式**：读全文快照、问答，并可提交六类结构化提案
+（同样走修订与事务卡片管线）：
+
+- **整段替换** `propose_edit` —— 原文本 + 新文本 + 摘要
+- **格式修改** `propose_format` —— 加粗、斜体、下划线、删除线、字体、字号、
+  颜色、对齐（整段级别）
+- **插入表格** `insert_table` —— TableGrid 样式、表头行
+- **插入标题章节** `insert_heading` —— 标题 1～9，进入导航窗格与自动目录
+- **插入数学公式** `insert_formula` —— LaTeX → OMML，Word 原生公式对象，可双击编辑
+- **插入纯文字段落** `insert_paragraph` —— 换行分段
+
+插入类内容可落在锚点段之后或**文档末尾**（锚点可省略 —— 空文档也能直接生成内容，
+如「帮我画一个表格」「随便写两段简介」）。
+
+## 安全设计原则
 
 - **LLM 永不直接操作 Word**：`LLM → EditPlan → 校验 → Diff → Patch → Office.js → Track Changes`
   （agent 模式同理：`Agent → 工具提案 → 逐条独立管线`）
@@ -23,6 +60,7 @@ Agent 模式下 AI 除整段改写外，还可提交五类结构化提案（同�
   字符级差异（diff-match-patch）在任务窗格内计算并从后向前应用
 - **隐私**：只发送完成请求所需的文档内容（选区 / 段落模式不发送全文），UI 明示 AI 读取范围
   （agent / @document 模式发送全文快照，发送前在聊天区披露段数与字数）
+- **取消即无副作用**：Agent 运行中点「停止」，已收到的提案全部丢弃，文档无任何变化（§58）
 
 ## 架构
 
@@ -51,8 +89,10 @@ Agent 模式下 AI 除整段改写外，还可提交五类结构化提案（同�
 │  llm/（LLMProvider 抽象 → OpenAICompatibleProvider，httpx）                   │
 │  agent_framework（Microsoft Agent Framework；懒 import，未装时后端仍可启动）  │
 │  只做文本理解 / 生成，不知道任何 Word 对象（§75）                                │
-└──────────────────────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────────────────────┘
 ```
+
+后端只产出文本计划，**所有对 Word 的操作都发生在前端**，这是隔离设计的物理边界。
 
 编辑数据流（§77）：
 
@@ -100,7 +140,9 @@ Agent 入口（「全文纠错」快捷命令 / 智能模式 isBatchIntent 或 i
           分派接受 / 拒绝 / 对账 —— 见 RevisionService）
 ```
 
-## 环境要求
+## 快速开始
+
+### 环境要求
 
 - **Node.js ≥ 22**（含 npm）
 - **Python ≥ 3.12**（Windows 下用 `py` 启动器）
@@ -108,7 +150,7 @@ Agent 入口（「全文纠错」快捷命令 / 智能模式 isBatchIntent 或 i
   不满足时任务窗格自动降级为「仅对话」，不抛异常）
 - 操作系统：Windows 10 / 11（sideload 流程以 Windows Word 桌面版为准）
 
-## 安装依赖
+### 安装依赖
 
 ```bash
 # 前端
@@ -116,11 +158,11 @@ cd frontend
 npm install
 
 # 后端
-cd backend
+cd ../backend
 py -m pip install -r requirements.txt
 
 # 生成 manifest 图标（一次性）
-cd frontend && npm run icons
+cd ../frontend && npm run icons
 
 # 生成测试文档（一次性，可选）
 cd ..
@@ -128,7 +170,7 @@ py -m pip install python-docx
 py tools/generate_test_documents.py
 ```
 
-## HTTPS Certificate
+### HTTPS 证书
 
 Office Add-in 的任务窗格在 Word 中以 HTTPS iframe 加载，开发期使用
 [office-addin-dev-certs](https://www.npmjs.com/package/office-addin-dev-certs) 提供的
@@ -142,22 +184,12 @@ npm run dev-certs     # 安装 localhost 开发证书
 证书就绪后 `npm run dev` 会自动以 `https://localhost:3000` 启动；
 若证书未安装，Vite 会退回 HTTP 并打印警告（此时 Word 无法加载任务窗格）。
 
-## 启动 Frontend
-
-```bash
-cd frontend
-BACKEND_PORT=8100 npm run dev  # https://localhost:3000，/api 代理到 http://localhost:8100
-```
-
-Vite 已把 `/api/*` 反向代理到本地 FastAPI（默认 8100，`BACKEND_PORT` 环境变量可改），
-避免 https 任务窗格访问 http 后端的混合内容问题 —— 任务窗格内后端地址保持留空即可。
-
-## 启动 Backend
+### 启动 Backend
 
 ```bash
 cd backend
 # 1. 准备配置
-copy .env.example .env      # 然后编辑 .env 填入 LLM_API_KEY 等
+copy .env.example .env      # 然后编辑 .env 填入 LLM_API_KEY 等（见「LLM 配置」）
 
 # 2. 启动（二选一；端口 8100 —— 本机 8000 常被其他服务占用）
 py -m uvicorn app.main:app --reload --port 8100
@@ -166,6 +198,16 @@ py run.py
 
 健康检查：`curl http://localhost:8100/api/v1/health`
 （或直接在任务窗格「设置」里点「保存并测试」）。
+
+### 启动 Frontend
+
+```bash
+cd frontend
+BACKEND_PORT=8100 npm run dev  # https://localhost:3000，/api 代理到 http://localhost:8100
+```
+
+Vite 已把 `/api/*` 反向代理到本地 FastAPI（默认 8100，`BACKEND_PORT` 环境变量可改），
+避免 https 任务窗格访问 http 后端的混合内容问题 —— 任务窗格内后端地址保持留空即可。
 
 ### Skill 配置后台
 
@@ -181,7 +223,7 @@ py run.py
 位置，可设置环境变量 `SKILL_STORE_PATH`。管理接口为 `GET/POST /api/v1/skills`
 及 `PUT/DELETE /api/v1/skills/{id}`。
 
-## Word Add-in Sideload
+## Sideload 到 Word
 
 ```bash
 cd frontend
@@ -218,9 +260,9 @@ npx office-addin-dev-settings runtime-log --disable
 资源字符串必须分 `<bt:ShortStrings>`（≤125 字符）和 `<bt:LongStrings>`（≤250 字符），
 不存在单一的 `<bt:Strings>`。
 
-## Manifest 配置
+### Manifest 关键配置
 
-`frontend/manifest.xml` 关键点：
+`frontend/manifest.xml`：
 
 - `Id`：插件唯一 GUID（换新插件身份时重新生成）
 - `Resources`/`bt:Url`：任务窗格地址，当前为 `https://localhost:3000/taskpane.html`
@@ -257,7 +299,7 @@ AGENT_MAX_TOOL_CALLS=40        # 单次任务最大工具调用次数
 BACKEND_CORS_ORIGINS=https://your-addin-origin.example.com
 ```
 
-## 调试方法
+## 调试
 
 - **前端**：浏览器 DevTools 直接 attach 任务窗格 iframe（Word 桌面版：
   右键任务窗格 → 检查 / 或 Edge DevTools）。开发模式下日志输出到 console。
@@ -295,7 +337,7 @@ BACKEND_CORS_ORIGINS=https://your-addin-origin.example.com
 - **Office.js 报错定位**：`OfficeExtension.Error` 的 `code / debugInfo`，
   已由 `frontend/src/utils/errors.ts` 统一映射为 `WORD_API_ERROR`
 
-## Revision POC 测试方法
+## 关键功能验证（POC 测试）
 
 > 这是全项目最关键的技术验证（§69 / §70），对应测试文档 `test-documents/04-existing-revisions.docx`。
 
@@ -405,7 +447,7 @@ backend/           FastAPI（无数据库）
   app/llm/              LLMProvider → OpenAICompatibleProvider
   app/prompts/          chat.md / edit.md / agent.md（§36 规则 + 提案纪律）
   app/models/           chat / edit / agent（Pydantic 请求与事件模型）
-  tests/                pytest 纯函数单测（提案校验 / 快照渲染 / 五类结构化提案工具）
+  tests/                pytest 纯函数单测（提案校验 / 快照渲染 / 六类提案工具）
 test-documents/    §67 的 8 个测试 docx（tools/generate_test_documents.py 生成）
 tools/             测试文档生成脚本
 ```
@@ -473,7 +515,8 @@ manifest 中任务窗格地址固定为 `https://localhost:3000`（端口写死�
 - **Agent**：所有输入进 Agent 通道（Microsoft Agent Framework）——读取全文快照 +
   当前光标/选区段落（模型据此理解「这段」的指代），**由模型自主决定**是直接回答
   还是通过 propose_edit / propose_format / insert_table / insert_formula /
-  insert_paragraph 提交修改提案；提案仍逐条走完整安全管线后生成事务卡片。
+  insert_paragraph / insert_heading 提交修改提案；提案仍逐条走完整安全管线后
+  生成事务卡片。
 
 疑问句在智能模式下不会被误路由（保守设计：批量修改绝不因误判而触发）。
 快捷命令芯片自带类型（编辑/对话/Agent），不受模式开关影响。
