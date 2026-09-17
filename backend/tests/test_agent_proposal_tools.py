@@ -35,6 +35,20 @@ def test_format_ok_bold_only() -> None:
     assert validate_format_proposal(_snapshot(), "p1", 0, bold=True) is None
 
 
+@pytest.mark.parametrize(
+    "style",
+    ["normal", "title", "subtitle", "heading1", "heading2", "heading9"],
+)
+def test_format_ok_paragraph_style(style: str) -> None:
+    assert validate_format_proposal(_snapshot(), "p1", 0, paragraph_style=style) is None
+
+
+@pytest.mark.parametrize("style", ["正文", "Heading1", "heading10", "", 1])
+def test_format_rejects_invalid_paragraph_style(style: object) -> None:
+    error = validate_format_proposal(_snapshot(), "p1", 0, paragraph_style=style)
+    assert error is not None and "paragraph_style" in error
+
+
 def test_format_ok_all_fields() -> None:
     assert (
         validate_format_proposal(

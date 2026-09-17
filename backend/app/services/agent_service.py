@@ -61,6 +61,20 @@ _FONT_SIZE_MIN = 1.0
 _FONT_SIZE_MAX = 100.0
 _COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 _ALIGNMENTS = ("left", "center", "right", "justify")
+_PARAGRAPH_STYLES = (
+    "normal",
+    "title",
+    "subtitle",
+    "heading1",
+    "heading2",
+    "heading3",
+    "heading4",
+    "heading5",
+    "heading6",
+    "heading7",
+    "heading8",
+    "heading9",
+)
 _TABLE_MAX_ROWS = 20
 _TABLE_MAX_COLUMNS = 8
 _TABLE_CELL_MAX_LENGTH = 200
@@ -267,6 +281,7 @@ def validate_format_proposal(
     font_size: object = None,
     color: object = None,
     alignment: object = None,
+    paragraph_style: object = None,
     max_proposals: int | None = None,
 ) -> str | None:
     """校验一条格式提案；返回错误说明（None = 通过）。纯函数。
@@ -278,9 +293,9 @@ def validate_format_proposal(
     if isinstance(anchor, str):
         return anchor
 
-    fields = (bold, italic, underline, strikethrough, font_name, font_size, color, alignment)
+    fields = (bold, italic, underline, strikethrough, font_name, font_size, color, alignment, paragraph_style)
     if all(value is None for value in fields):
-        return "至少提供一个格式字段（bold / italic / underline / strikethrough / font_name / font_size / color / alignment）"
+        return "至少提供一个格式字段（含 paragraph_style、字体、字号、加粗、颜色、对齐等）"
 
     for name, value in (("bold", bold), ("italic", italic), ("underline", underline), ("strikethrough", strikethrough)):
         if value is not None and not isinstance(value, bool):
@@ -303,6 +318,9 @@ def validate_format_proposal(
     if alignment is not None:
         if not isinstance(alignment, str) or alignment not in _ALIGNMENTS:
             return f"alignment 必须是 {' / '.join(_ALIGNMENTS)} 之一"
+    if paragraph_style is not None:
+        if not isinstance(paragraph_style, str) or paragraph_style not in _PARAGRAPH_STYLES:
+            return f"paragraph_style 必须是 {' / '.join(_PARAGRAPH_STYLES)} 之一"
     return None
 
 
@@ -667,6 +685,7 @@ async def run_agent_stream(request: AgentStreamRequest) -> AsyncIterator[AgentEv
         font_size: float | None = None,
         color: str | None = None,
         alignment: str | None = None,
+        paragraph_style: str | None = None,
     ) -> str:
         """修改指定段落的格式（不改文字）。只传需要修改的字段，未传的保持不变。
 
@@ -681,6 +700,7 @@ async def run_agent_stream(request: AgentStreamRequest) -> AsyncIterator[AgentEv
             font_size: 字号（磅，1-100）。
             color: 文字颜色，#RRGGBB 格式，如 "#FF0000"。
             alignment: 对齐方式：left / center / right / justify。
+            paragraph_style: Word 内置段落样式：normal / title / subtitle / heading1 ... heading9。
         """
         budget = _check_budget()
         if budget:
@@ -697,6 +717,7 @@ async def run_agent_stream(request: AgentStreamRequest) -> AsyncIterator[AgentEv
             font_size=font_size,
             color=color,
             alignment=alignment,
+            paragraph_style=paragraph_style,
         )
         if error:
             return f"提案被拒绝：{error}"
@@ -716,6 +737,7 @@ async def run_agent_stream(request: AgentStreamRequest) -> AsyncIterator[AgentEv
                     font_size=font_size,
                     color=color.upper() if isinstance(color, str) else color,
                     alignment=alignment,  # type: ignore[arg-type] — validate 已限定枚举
+                    paragraph_style=paragraph_style,  # type: ignore[arg-type] — validate 已限定枚举
                 )
             )
         except ValidationError as exc:

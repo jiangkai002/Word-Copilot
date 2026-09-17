@@ -144,6 +144,20 @@ export interface AgentFormatProposalEvent {
   font_size?: number | null;
   color?: string | null;
   alignment?: "left" | "center" | "right" | "justify" | null;
+  paragraph_style?:
+    | "normal"
+    | "title"
+    | "subtitle"
+    | "heading1"
+    | "heading2"
+    | "heading3"
+    | "heading4"
+    | "heading5"
+    | "heading6"
+    | "heading7"
+    | "heading8"
+    | "heading9"
+    | null;
 }
 
 /**

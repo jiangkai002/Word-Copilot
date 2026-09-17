@@ -829,6 +829,7 @@ export const useEditStore = defineStore("edits", () => {
     if (p.font_size !== null && p.font_size !== undefined) changes.fontSize = p.font_size;
     if (p.color !== null && p.color !== undefined) changes.color = p.color;
     if (p.alignment !== null && p.alignment !== undefined) changes.alignment = p.alignment;
+    if (p.paragraph_style !== null && p.paragraph_style !== undefined) changes.paragraphStyle = p.paragraph_style;
     return changes;
   }
 

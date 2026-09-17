@@ -41,7 +41,7 @@ describe("AgentApi.streamAgent 帧解析", () => {
           ),
           frame(
             "proposal_format",
-            JSON.stringify({ kind: "format", paragraph_id: "p2", summary: "加粗", bold: true }),
+            JSON.stringify({ kind: "format", paragraph_id: "p2", summary: "设为标题 2", paragraph_style: "heading2" }),
           ),
           frame(
             "proposal_table",
@@ -113,7 +113,7 @@ describe("AgentApi.streamAgent 帧解析", () => {
       "insert-heading",
     ]);
     expect(proposals[0]).toMatchObject({ kind: "text", paragraph_id: "p1", new_text: "新文" });
-    expect(proposals[1]).toMatchObject({ kind: "format", paragraph_id: "p2", bold: true });
+    expect(proposals[1]).toMatchObject({ kind: "format", paragraph_id: "p2", paragraph_style: "heading2" });
     expect(proposals[2]).toMatchObject({ kind: "insert-table", anchor_paragraph_id: "p3", header: true });
     expect((proposals[2] as { values: string[][] }).values).toEqual([
       ["列A", "列B"],
@@ -186,6 +186,8 @@ describe("AgentApi.streamAgent 帧解析", () => {
           frame("proposal", JSON.stringify({ paragraph_id: "p1", original_text: "x", summary: "s" })),
           // proposal_format 无任何格式字段
           frame("proposal_format", JSON.stringify({ kind: "format", paragraph_id: "p2", summary: "s" })),
+          // proposal_format 非法内置样式
+          frame("proposal_format", JSON.stringify({ kind: "format", paragraph_id: "p2", summary: "s", paragraph_style: "heading10" })),
           // proposal_table values 非二维数组
           frame(
             "proposal_table",

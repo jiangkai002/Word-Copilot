@@ -41,6 +41,14 @@ function alignmentToWord(value: NonNullable<FormatChanges["alignment"]>): Word.A
   return map[value];
 }
 
+/** 后端稳定枚举 → Word 语言无关内置样式 id。 */
+function paragraphStyleToWord(value: NonNullable<FormatChanges["paragraphStyle"]>): Word.BuiltInStyleName {
+  if (value === "normal") return "Normal" as Word.BuiltInStyleName;
+  if (value === "title") return "Title" as Word.BuiltInStyleName;
+  if (value === "subtitle") return "Subtitle" as Word.BuiltInStyleName;
+  return `Heading${value.slice("heading".length)}` as Word.BuiltInStyleName;
+}
+
 export class FormatEngine {
   /** 应用格式计划。失败（定位 / 哈希 / 写入异常）抛 CopilotError（已自动回滚）。 */
   async applyFormatPlan(plan: FormatPlan): Promise<FormatOutcome> {
@@ -152,8 +160,11 @@ export class FormatEngine {
     if (changes.fontSize !== undefined) fontProps.push("size");
     if (changes.color !== undefined) fontProps.push("color");
     if (fontProps.length > 0) content.font.load(fontProps.join(","));
-    if (changes.alignment !== undefined) content.paragraphs.load("alignment");
-    if (fontProps.length === 0 && changes.alignment === undefined) return {};
+    const paragraphProps: string[] = [];
+    if (changes.alignment !== undefined) paragraphProps.push("alignment");
+    if (changes.paragraphStyle !== undefined) paragraphProps.push("styleBuiltIn");
+    if (paragraphProps.length > 0) content.paragraphs.load(paragraphProps.join(","));
+    if (fontProps.length === 0 && paragraphProps.length === 0) return {};
 
     await ctx.sync();
 
@@ -188,6 +199,13 @@ export class FormatEngine {
       const valid = alignments.filter((v) => v !== "" && v !== "Mixed" && v !== "Unknown");
       if (alignments.length > 0 && valid.length === alignments.length && new Set(valid).size === 1) {
         before.alignment = valid[0];
+      }
+    }
+    if (changes.paragraphStyle !== undefined) {
+      const styles = content.paragraphs.items.map((p) => String(p.styleBuiltIn ?? ""));
+      const valid = styles.filter((value) => value !== "" && value !== "Mixed" && value !== "Unknown");
+      if (styles.length > 0 && valid.length === styles.length && new Set(valid).size === 1) {
+        before.paragraphStyle = valid[0];
       }
     }
     return before;
@@ -232,6 +250,13 @@ export class FormatEngine {
       }
       applied++;
     }
+    if (changes.paragraphStyle !== undefined) {
+      const value = paragraphStyleToWord(changes.paragraphStyle);
+      for (const paragraph of content.paragraphs.items) {
+        paragraph.styleBuiltIn = value;
+      }
+      applied++;
+    }
     return applied;
   }
 
@@ -252,8 +277,11 @@ export class FormatEngine {
       if (changes.fontSize !== undefined) fontProps.push("size");
       if (changes.color !== undefined) fontProps.push("color");
       if (fontProps.length > 0) content.font.load(fontProps.join(","));
-      if (changes.alignment !== undefined) content.paragraphs.load("alignment");
-      if (fontProps.length === 0 && changes.alignment === undefined) return skipped;
+      const paragraphProps: string[] = [];
+      if (changes.alignment !== undefined) paragraphProps.push("alignment");
+      if (changes.paragraphStyle !== undefined) paragraphProps.push("styleBuiltIn");
+      if (paragraphProps.length > 0) content.paragraphs.load(paragraphProps.join(","));
+      if (fontProps.length === 0 && paragraphProps.length === 0) return skipped;
       await ctx.sync();
 
       const font = content.font as Word.Font & Record<string, unknown>;
@@ -277,6 +305,11 @@ export class FormatEngine {
         const expected = alignmentToWord(changes.alignment);
         const bad = content.paragraphs.items.some((p) => p.alignment !== expected);
         if (bad) mismatch("alignment", expected, content.paragraphs.items.map((p) => p.alignment).join("|"));
+      }
+      if (changes.paragraphStyle !== undefined) {
+        const expected = paragraphStyleToWord(changes.paragraphStyle);
+        const bad = content.paragraphs.items.some((p) => p.styleBuiltIn !== expected);
+        if (bad) mismatch("paragraphStyle", expected, content.paragraphs.items.map((p) => p.styleBuiltIn).join("|"));
       }
     } catch (err) {
       logger.debug("格式软校验读取失败（忽略）：", err);
@@ -333,11 +366,16 @@ export class FormatEngine {
     if (before.fontName !== undefined) font.name = before.fontName;
     if (before.fontSize !== undefined && before.fontSize > 0) font.size = before.fontSize;
     if (before.color !== undefined && before.color) font.color = before.color;
-    if (before.alignment !== undefined && before.alignment) {
-      content.paragraphs.load("alignment");
+    if (before.alignment !== undefined || before.paragraphStyle !== undefined) {
+      content.paragraphs.load("alignment,styleBuiltIn");
       await ctx.sync();
       for (const paragraph of content.paragraphs.items) {
-        paragraph.alignment = before.alignment as Word.Alignment;
+        if (before.alignment !== undefined && before.alignment) {
+          paragraph.alignment = before.alignment as Word.Alignment;
+        }
+        if (before.paragraphStyle !== undefined && before.paragraphStyle) {
+          paragraph.styleBuiltIn = before.paragraphStyle as Word.BuiltInStyleName;
+        }
       }
     }
     await ctx.sync();

@@ -59,6 +59,20 @@ export interface FormatChanges {
   /** #RRGGBB */
   color?: string;
   alignment?: "left" | "center" | "right" | "justify";
+  /** Word 内置段落样式；语言无关，宿主显示为“正文 / 标题 1”等本地化名称。 */
+  paragraphStyle?:
+    | "normal"
+    | "title"
+    | "subtitle"
+    | "heading1"
+    | "heading2"
+    | "heading3"
+    | "heading4"
+    | "heading5"
+    | "heading6"
+    | "heading7"
+    | "heading8"
+    | "heading9";
 }
 
 /**
@@ -74,6 +88,7 @@ export interface FormatBeforeValues {
   fontSize?: number;
   color?: string;
   alignment?: string;
+  paragraphStyle?: string;
 }
 
 /** 格式修改计划（整段；目标段定位与乐观锁校验同 EditPlan） */

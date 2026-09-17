@@ -85,6 +85,20 @@ class ProposalEvent(BaseModel):
 
 
 FormatAlignment = Literal["left", "center", "right", "justify"]
+ParagraphStyle = Literal[
+    "normal",
+    "title",
+    "subtitle",
+    "heading1",
+    "heading2",
+    "heading3",
+    "heading4",
+    "heading5",
+    "heading6",
+    "heading7",
+    "heading8",
+    "heading9",
+]
 
 
 class FormatProposalEvent(BaseModel):
@@ -106,6 +120,7 @@ class FormatProposalEvent(BaseModel):
     font_size: float | None = Field(default=None, ge=1, le=100)
     color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     alignment: FormatAlignment | None = None
+    paragraph_style: ParagraphStyle | None = None
 
 
 class TableProposalEvent(BaseModel):

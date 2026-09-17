@@ -60,6 +60,7 @@ const FORMAT_FIELD_LABELS: Record<keyof FormatChanges, string> = {
   fontSize: "字号",
   color: "颜色",
   alignment: "对齐",
+  paragraphStyle: "段落样式",
 };
 
 const onOff = (v: boolean): string => (v ? "开" : "关");
@@ -141,6 +142,28 @@ const formatRows = computed<FormatRow[]>(() => {
           hasBefore: before?.alignment !== undefined,
         });
         break;
+      case "paragraphStyle": {
+        const styleLabels: Record<string, string> = {
+          normal: "正文",
+          Normal: "正文",
+          title: "标题",
+          Title: "标题",
+          subtitle: "副标题",
+          Subtitle: "副标题",
+        };
+        for (let level = 1; level <= 9; level++) {
+          styleLabels[`heading${level}`] = `标题 ${level}`;
+          styleLabels[`Heading${level}`] = `标题 ${level}`;
+        }
+        rows.push({
+          key,
+          label: FORMAT_FIELD_LABELS[key],
+          before: before?.paragraphStyle ? (styleLabels[before.paragraphStyle] ?? before.paragraphStyle) : "",
+          after: styleLabels[value as string] ?? String(value),
+          hasBefore: before?.paragraphStyle !== undefined,
+        });
+        break;
+      }
     }
   }
   return rows;

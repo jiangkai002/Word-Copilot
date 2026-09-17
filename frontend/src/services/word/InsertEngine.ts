@@ -193,7 +193,13 @@ export class InsertEngine {
   /** 以 Word 修订事务插入真正的 Heading1～Heading9 标题段落。 */
   async applyHeadingInsertPlan(plan: HeadingInsertPlan): Promise<PatchOutcome> {
     const ooxml = headingToOoxml(plan.text, plan.level);
-    return this.applyTrackedOoxml(plan.anchor, plan.contentControlTag, ooxml, "标题");
+    return this.applyTrackedOoxml(
+      plan.anchor,
+      plan.contentControlTag,
+      ooxml,
+      "标题",
+      `Heading${plan.level}` as Word.BuiltInStyleName,
+    );
   }
 
   /**
@@ -219,6 +225,7 @@ export class InsertEngine {
     contentControlTag: string,
     ooxml: string,
     label: string,
+    paragraphStyleBuiltIn?: Word.BuiltInStyleName,
   ): Promise<PatchOutcome> {
     return WordService.run(async (ctx) => {
       const anchorRange = await this.locateAnchor(ctx, anchor);
@@ -247,6 +254,14 @@ export class InsertEngine {
         await ctx.sync();
         control.insertOoxml(ooxml, "Replace");
         await ctx.sync();
+        // ContentControl.Replace 可能保留外层占位段落的 pPr，导致 OOXML 中的
+        // w:pStyle 未真正落到宿主段落。标题必须再通过 Word API 显式设置内置
+        // 样式，确保导航窗格、章节上下文与自动目录都能识别。
+        if (paragraphStyleBuiltIn) {
+          const paragraph = control.getRange(Word.RangeLocation.content).paragraphs.getFirst();
+          paragraph.styleBuiltIn = paragraphStyleBuiltIn;
+          await ctx.sync();
+        }
         return {
           contentControlTag,
           appliedOps: 1,

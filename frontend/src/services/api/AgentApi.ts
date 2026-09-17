@@ -152,6 +152,26 @@ export class AgentApi {
   /** proposal_format 帧校验：指向段落 + 至少一个格式字段（store 侧再做完整校验） */
   private isValidFormatProposal(payload: AgentFormatProposalEvent): boolean {
     if (!payload.paragraph_id) return false;
+    if (
+      payload.paragraph_style !== null &&
+      payload.paragraph_style !== undefined &&
+      ![
+        "normal",
+        "title",
+        "subtitle",
+        "heading1",
+        "heading2",
+        "heading3",
+        "heading4",
+        "heading5",
+        "heading6",
+        "heading7",
+        "heading8",
+        "heading9",
+      ].includes(payload.paragraph_style)
+    ) {
+      return false;
+    }
     const fields = [
       payload.bold,
       payload.italic,
@@ -161,6 +181,7 @@ export class AgentApi {
       payload.font_size,
       payload.color,
       payload.alignment,
+      payload.paragraph_style,
     ];
     return fields.some((v) => v !== null && v !== undefined);
   }
