@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeText,
   normalizeEqual,
+  reviewedTextEquals,
   stripTrailingMarks,
   stripLeadingMarks,
   toWordText,
@@ -108,5 +109,30 @@ describe("normalizeEqual", () => {
 
   it("首尾空格参与比较", () => {
     expect(normalizeEqual(" A", "A")).toBe(false);
+  });
+});
+
+describe("reviewedTextEquals（接受全部修订后文本比对）", () => {
+  it("完全一致", () => {
+    expect(reviewedTextEquals("相同文本", "相同文本")).toBe(true);
+  });
+
+  it("真实回归：getReviewedText 输出含结构标记前缀“<<”（2026-09-17 Word 桌面版实测）", () => {
+    const expected = "步骤1.2 统一BIM坐标系";
+    expect(reviewedTextEquals("<<" + expected, expected)).toBe(true);
+  });
+
+  it("标记字符出现在中间/结尾同样容忍（剥离两侧标记后比较）", () => {
+    expect(reviewedTextEquals("<a>", "a")).toBe(true);
+    expect(reviewedTextEquals("a\x07", "a")).toBe(true);
+  });
+
+  it("期望文本本身含 '<' 或 '>' 时不容忍（防止掩盖真实差异）", () => {
+    expect(reviewedTextEquals("a < b", "a < b")).toBe(true); // 完全相等仍通过
+    expect(reviewedTextEquals("a > b", "a < b")).toBe(false); // 含标记字符 → 严格比较
+  });
+
+  it("真实内容差异不相等（不能因剥离标记而误判成功）", () => {
+    expect(reviewedTextEquals("<<完全不同的文本", "步骤1.2 统一BIM坐标系")).toBe(false);
   });
 });

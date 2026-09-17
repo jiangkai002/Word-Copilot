@@ -15,7 +15,7 @@
 import type { EditOperation, EditPlan } from "@/models/EditPlan";
 import { CopilotError } from "@/utils/errors";
 import { logger } from "@/utils/logger";
-import { normalizeText, toWordText, textHash } from "@/utils/text";
+import { normalizeText, reviewedTextEquals, stripTrailingMarks, textHash, toWordText } from "@/utils/text";
 import { countOccurrencesBefore, insertAnchorWindow } from "@/utils/match";
 import { rangeLocator } from "./RangeLocator";
 import { WordService } from "./WordService";
@@ -192,7 +192,13 @@ export class PatchEngine {
       const anchor = this.searchableForm(oldText);
       if (!anchor) return false;
       const occurrence = countOccurrencesBefore(canonicalOriginal, oldText, op.start);
-      const outcome = await this.pickMatch(ctx, ctrlRange, anchor, occurrence);
+      let outcome = await this.pickMatch(ctx, ctrlRange, anchor, occurrence);
+      if (!outcome) {
+        // Word search 匹配不到横跨公式（OMML math zone）的文本：Range.text 会把
+        // 公式线性化（Diff 坐标系因此成立），但 search 只作用于纯文本 run。
+        // 兜底：oldText 前后缀分别锚定，expandTo 覆盖中间不可搜索区域。
+        outcome = await this.locateByAnchoredEnds(ctx, ctrlRange, canonicalOriginal, op);
+      }
       if (!outcome) return false;
       if (op.type === "delete") {
         outcome.delete();
@@ -203,11 +209,10 @@ export class PatchEngine {
     }
 
     // ---- insert：锚定邻接等文本 ----
-    // 优先锚定后方文本（插入到匹配之前）
+    // 优先锚定后方文本（插入到匹配之前）；锚点窗口横跨公式时逐步收缩重试
     const { following, preceding } = insertAnchorWindow(canonicalOriginal, op, allOps, ANCHOR_LENGTH);
     if (following.length >= 1) {
-      const occurrence = countOccurrencesBefore(canonicalOriginal, following, op.start);
-      const outcome = await this.pickMatch(ctx, ctrlRange, toWordText(following), occurrence);
+      const outcome = await this.pickInsertAnchor(ctx, ctrlRange, canonicalOriginal, following, op.start, "before");
       if (outcome) {
         outcome.insertText(wordNewText, "Before");
         return true;
@@ -215,15 +220,92 @@ export class PatchEngine {
     }
     // 锚定前方文本（插入到匹配之后）
     if (preceding.length >= 1) {
-      // 目标是 [0, op.start) 内最后一个匹配（锚点本身）
-      const occurrence = Math.max(0, countOccurrencesBefore(canonicalOriginal, preceding, op.start) - 1);
-      const outcome = await this.pickMatch(ctx, ctrlRange, toWordText(preceding), occurrence);
+      const outcome = await this.pickInsertAnchor(ctx, ctrlRange, canonicalOriginal, preceding, op.start, "after");
       if (outcome) {
         outcome.insertText(wordNewText, "After");
         return true;
       }
     }
     return false;
+  }
+
+  /**
+   * 插入锚点定位：先按完整窗口搜索（主路径），失败时按减半长度收缩重试。
+   *
+   * 锚点窗口可能横跨公式（OMML math zone）：线性化的公式文本无法被 search
+   * 命中。收缩策略 —— “后方锚点”取窗口前缀（仍从插入点开始）、“前方锚点”
+   * 取窗口后缀（仍紧贴插入点），出现序号按缩短后的锚点重算，插入位置不变。
+   */
+  private async pickInsertAnchor(
+    ctx: Word.RequestContext,
+    scope: Word.Range,
+    original: string,
+    window: string,
+    insertAt: number,
+    location: "before" | "after",
+  ): Promise<Word.Range | null> {
+    let len = window.length;
+    while (len >= 1) {
+      const probe = location === "before" ? window.slice(0, len) : window.slice(window.length - len);
+      const occurrence = location === "before"
+        ? countOccurrencesBefore(original, probe, insertAt)
+        : Math.max(0, countOccurrencesBefore(original, probe, insertAt) - 1);
+      const outcome = await this.pickMatch(ctx, scope, toWordText(probe), occurrence);
+      if (outcome) return outcome;
+      len = Math.floor(len / 2);
+    }
+    return null;
+  }
+
+  /**
+   * delete/replace 的兜底定位（oldText 横跨公式等不可搜索内容时）：
+   * 把 oldText 拆成“最长可搜索前缀 + 最长可搜索后缀”，分别按出现序号
+   * 定位后 expandTo 合并 —— 合并范围覆盖中间的不可搜索区域（公式）。
+   * 合并范围的 .text 必须与 oldText 的线性文本完全一致，否则视为定位
+   * 失败（宁可不改也不错改）。
+   */
+  private async locateByAnchoredEnds(
+    ctx: Word.RequestContext,
+    scope: Word.Range,
+    original: string,
+    op: EditOperation,
+  ): Promise<Word.Range | null> {
+    const oldText = op.oldText ?? "";
+    if (oldText.length < 4) return null; // 过短的文本没有可靠的拆分空间
+
+    const prefixMatch = await this.pickEndAnchor(ctx, scope, original, oldText, op.start, "prefix");
+    if (!prefixMatch) return null;
+    const suffixMatch = await this.pickEndAnchor(ctx, scope, original, oldText, op.end, "suffix");
+    if (!suffixMatch) return null;
+
+    const combined = prefixMatch.expandTo(suffixMatch);
+    combined.load("text");
+    await ctx.sync();
+    const combinedText = stripTrailingMarks(normalizeText(combined.text));
+    if (combinedText !== stripTrailingMarks(normalizeText(oldText))) return null;
+    return combined;
+  }
+
+  /** 锚定 oldText 一端：从半长开始按减半长度收缩，直到该端锚点可搜索。 */
+  private async pickEndAnchor(
+    ctx: Word.RequestContext,
+    scope: Word.Range,
+    original: string,
+    oldText: string,
+    boundary: number,
+    end: "prefix" | "suffix",
+  ): Promise<Word.Range | null> {
+    let len = Math.floor(oldText.length / 2);
+    while (len >= 1) {
+      const probe = end === "prefix" ? oldText.slice(0, len) : oldText.slice(oldText.length - len);
+      const occurrence = end === "prefix"
+        ? countOccurrencesBefore(original, probe, boundary)
+        : Math.max(0, countOccurrencesBefore(original, probe, boundary) - 1);
+      const outcome = await this.pickMatch(ctx, scope, toWordText(probe), occurrence);
+      if (outcome) return outcome;
+      len = Math.floor(len / 2);
+    }
+    return null;
   }
 
   /**
@@ -270,7 +352,7 @@ export class PatchEngine {
       const reviewed = range.getReviewedText(Word.ChangeTrackingVersion.current);
       await ctx.sync();
       const finalText = normalizeText(reviewed.value).replace(/[\n\r\v]+$/, "");
-      if (finalText === expectedFinal) return null;
+      if (reviewedTextEquals(finalText, expectedFinal)) return null;
       return {
         final: finalText,
         expectedFinal,
