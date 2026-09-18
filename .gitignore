@@ -22,6 +22,12 @@ backend/logs/
 frontend/*.tmp.*
 frontend/com-test.tmp/
 
+# 分发版 manifest（deploy/make_manifest.py 产物，按机器生成）
+deploy/dist/
+
+# OpenCode 会话状态
+.omo/
+
 # 编辑器
 .vscode/
 .idea/

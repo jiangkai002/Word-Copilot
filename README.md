@@ -182,6 +182,21 @@ npm run sideload:word    # 直接启动 Word 并加载插件（可选，也可�
 npm run unsideload       # office-addin-dev-settings unregister manifest.xml
 ```
 
+## 分发给其他用户（deploy/）
+
+想让别人也用上这套插件、而前后端都跑在你自己电脑上时，**分发的唯一文件是一个
+manifest.xml**（Word 只是按 manifest 里的地址从你的机器加载任务窗格网页）。
+`deploy/` 目录提供生成与分发工具：
+
+```bash
+py deploy\make_manifest.py --base https://你的机器名:端口   # 产出 deploy\dist\manifest.xml
+```
+
+脚本把 manifest 中全部本机开发地址替换为你的对外 HTTPS 源（任务窗格与 API
+须同一源，避免混合内容）；使用者通过**共享文件夹受信目录**（零命令行）或
+`office-addin-dev-settings register` 安装。前置条件（HTTPS 源、CORS、
+证书信任、隐私告知）与完整步骤见 [deploy/README.md](deploy/README.md)。
+
 ### 任务窗格没出现时的排查（运行时日志）
 
 Word 会**静默丢弃**解析失败的 manifest（功能区不出现按钮、也不弹错）。
@@ -304,6 +319,7 @@ backend/           FastAPI（无数据库）
   tests/                pytest 纯函数单测（提案校验 / 快照渲染 / 六类提案工具）
 test-documents/    §67 的 8 个测试 docx（tools/generate_test_documents.py 生成）
 tools/             测试文档生成脚本
+deploy/           分发部署包（生成分发版 manifest + 安装说明）
 ```
 
 ## 第三方许可
