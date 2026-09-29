@@ -135,4 +135,11 @@ describe("reviewedTextEquals（接受全部修订后文本比对）", () => {
   it("真实内容差异不相等（不能因剥离标记而误判成功）", () => {
     expect(reviewedTextEquals("<<完全不同的文本", "步骤1.2 统一BIM坐标系")).toBe(false);
   });
+
+  it("Word 将公式字母转成数学斜体且正文含比较符时，仍按实际字符校验", () => {
+    const expected = "观测方向$d_i = R_i d_c$，其中$\\alpha_i > 0$。";
+    const actual = "<<<<<<<观测方向$𝑑_𝑖 = 𝑅_𝑖 𝑑_𝑐$，其中$\\alpha_i > 0$。";
+    expect(reviewedTextEquals(actual, expected)).toBe(true);
+    expect(reviewedTextEquals(actual.replace(" > 0", " > 1"), expected)).toBe(false);
+  });
 });

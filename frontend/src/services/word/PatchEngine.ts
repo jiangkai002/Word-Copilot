@@ -16,8 +16,9 @@ import type { EditOperation, EditPlan } from "@/models/EditPlan";
 import { CopilotError } from "@/utils/errors";
 import { logger } from "@/utils/logger";
 import { normalizeText, reviewedTextEquals, stripTrailingMarks, textHash, toWordText } from "@/utils/text";
-import { countOccurrencesBefore, insertAnchorWindow } from "@/utils/match";
+import { countOccurrencesBefore, insertAnchorWindow, surroundingAnchorWindow } from "@/utils/match";
 import { rangeLocator } from "./RangeLocator";
+import { paragraphsToOoxml } from "./InsertEngine";
 import { WordService } from "./WordService";
 
 /** insert 锚点长度 */
@@ -45,6 +46,112 @@ export interface PatchOutcome {
 }
 
 export class PatchEngine {
+  /** 整段含 $LaTeX$ 时以 OOXML 写入原生 OMML 公式。 */
+  async applyRichEditPlan(plan: EditPlan): Promise<PatchOutcome> {
+    if (/[\r\n\v]/.test(plan.newText)) {
+      throw new CopilotError("INVALID_EDIT_RESPONSE", "含行内公式的修改仅支持单段内容。");
+    }
+    // 转换先于任何 Word 写入；非法 LaTeX 不会触碰文档。
+    const ooxml = paragraphsToOoxml([plan.newText]);
+    const formulas = [...plan.newText.matchAll(/\\\(.+?\\\)|\$[^$\r\n]+\$/g)];
+    const plainParts = plan.newText.split(/\\\(.+?\\\)|\$[^$\r\n]+\$/g).filter(Boolean);
+    if (formulas.length === 0) {
+      throw new CopilotError("INVALID_EDIT_RESPONSE", "修改内容没有可转换的行内公式。");
+    }
+
+    return WordService.run(async (ctx) => {
+      const located = await rangeLocator.locate(ctx, plan.target);
+      if (!located.found) {
+        throw new CopilotError(
+          located.reason === "ambiguous" ? "RANGE_AMBIGUOUS" : "RANGE_NOT_FOUND",
+          "目标段落已不存在或无法唯一定位。",
+        );
+      }
+      const target = located.range;
+      target.load("text");
+      await ctx.sync();
+      if (await textHash(target.text) !== plan.target.textHash) {
+        throw new CopilotError("DOCUMENT_CHANGED", "目标段落已变化，修改未应用。");
+      }
+
+      const previousMode = await WordService.readChangeTrackingMode(ctx);
+      let control: Word.ContentControl | null = null;
+      try {
+        // 包含段落标记，避免导入 w:p 时在原段内额外拆出一段。
+        const originalParagraph = target.paragraphs.getFirst();
+        originalParagraph.load("style");
+        await ctx.sync();
+        const originalStyle = originalParagraph.style;
+        const whole = originalParagraph.getRange(Word.RangeLocation.whole);
+        control = whole.insertContentControl();
+        control.tag = plan.contentControlTag;
+        control.title = "Word AI";
+        try {
+          control.appearance = Word.ContentControlAppearance.hidden;
+        } catch {
+          // 个别宿主不支持 hidden 外观。
+        }
+        await ctx.sync();
+        ctx.document.changeTrackingMode = Word.ChangeTrackingMode.trackAll;
+        await ctx.sync();
+        control.insertOoxml(ooxml, "Replace");
+        await ctx.sync();
+        // OOXML 只描述新内容，恢复原段的段落样式（表格中的“正文”等）。
+        if (originalStyle) {
+          control.getRange(Word.RangeLocation.content).paragraphs.getFirst().style = originalStyle;
+          await ctx.sync();
+        }
+
+        const current = control.getRange(Word.RangeLocation.content).getReviewedText(Word.ChangeTrackingVersion.current);
+        const actualOoxml = control.getOoxml();
+        const changes = control.getTrackedChanges();
+        changes.load("type");
+        await ctx.sync();
+        const formulaCount = (actualOoxml.value.match(/<m:oMath(?:\s|>)/g) ?? []).length;
+        const literalDollarCount = (plainParts.join("").match(/\$/g) ?? []).length;
+        const actualDollarCount = (current.value.match(/\$/g) ?? []).length;
+        let cursor = 0;
+        const textHasAllParts = plainParts.every((part) => {
+          const at = current.value.indexOf(part, cursor);
+          if (at < 0) return false;
+          cursor = at + part.length;
+          return true;
+        });
+        if (
+          formulaCount < formulas.length || !textHasAllParts ||
+          actualDollarCount !== literalDollarCount || changes.items.length === 0
+        ) {
+          logger.warn(
+            `原生公式替换校验失败：math=${formulaCount}/${formulas.length} ` +
+              `plain=${textHasAllParts} dollar=${actualDollarCount}/${literalDollarCount} ` +
+              `changes=${changes.items.length}`,
+          );
+          await this.rollback(ctx, control);
+          control = null;
+          throw new CopilotError("REVISION_ERROR", "公式替换校验失败，已自动回滚。");
+        }
+        return {
+          contentControlTag: plan.contentControlTag,
+          appliedOps: 1,
+          skipped: [],
+          changeCount: changes.items.length,
+        };
+      } catch (err) {
+        if (control) await this.rollback(ctx, control);
+        throw err;
+      } finally {
+        if (previousMode !== null) {
+          try {
+            ctx.document.changeTrackingMode = previousMode;
+            await ctx.sync();
+          } catch (err) {
+            logger.error("恢复 changeTrackingMode 失败，请手动检查 Word 修订状态：", err);
+          }
+        }
+      }
+    });
+  }
+
   /**
    * 应用编辑计划。成功返回事务信息；
    * 失败（目标变化 / 定位失败 / 校验失败）抛 CopilotError。
@@ -199,6 +306,10 @@ export class PatchEngine {
         // 兜底：oldText 前后缀分别锚定，expandTo 覆盖中间不可搜索区域。
         outcome = await this.locateByAnchoredEnds(ctx, ctrlRange, canonicalOriginal, op);
       }
+      if (!outcome) {
+        // oldText 完全位于 OMML 内时，两端也无法搜索；用公式外的文字夹出范围。
+        outcome = await this.locateBySurroundingText(ctx, ctrlRange, canonicalOriginal, op, allOps);
+      }
       if (!outcome) return false;
       if (op.type === "delete") {
         outcome.delete();
@@ -283,6 +394,30 @@ export class PatchEngine {
     await ctx.sync();
     const combinedText = stripTrailingMarks(normalizeText(combined.text));
     if (combinedText !== stripTrailingMarks(normalizeText(oldText))) return null;
+    return combined;
+  }
+
+  /** 从不可搜索区间两侧定位，仅在夹出的线性文本与 oldText 完全相同时使用。 */
+  private async locateBySurroundingText(
+    ctx: Word.RequestContext,
+    scope: Word.Range,
+    original: string,
+    op: EditOperation,
+    allOps: readonly EditOperation[],
+  ): Promise<Word.Range | null> {
+    const oldText = op.oldText ?? "";
+    const { preceding, following } = surroundingAnchorWindow(original, op, allOps, ANCHOR_LENGTH);
+    if (!preceding || !following) return null;
+    const before = await this.pickInsertAnchor(ctx, scope, original, preceding, op.start, "after");
+    if (!before) return null;
+    const after = await this.pickInsertAnchor(ctx, scope, original, following, op.end, "before");
+    if (!after) return null;
+    const combined = before.getRange(Word.RangeLocation.end).expandTo(after.getRange(Word.RangeLocation.start));
+    combined.load("text");
+    await ctx.sync();
+    if (stripTrailingMarks(normalizeText(combined.text)) !== stripTrailingMarks(normalizeText(oldText))) {
+      return null;
+    }
     return combined;
   }
 

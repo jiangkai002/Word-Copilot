@@ -66,7 +66,9 @@ function richLineToOoxml(line: string): string {
     if (index > cursor) {
       content += `<w:r><w:t xml:space="preserve">${escapeXmlText(line.slice(cursor, index))}</w:t></w:r>`;
     }
-    const latex = match[1] ?? match[2] ?? "";
+    // 部分模型把 LaTeX 命令的反斜杠重复输出（\\\\alpha）。
+    // 当前只支持单行公式，双反斜杠换行不在支持范围内。
+    const latex = (match[1] ?? match[2] ?? "").replace(/\\\\(?=[A-Za-z])/g, "\\");
     content += latexToOmml(latex, false);
     cursor = index + match[0].length;
   }

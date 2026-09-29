@@ -15,7 +15,7 @@
  * 模拟公式区间：区间内的文本不产生 search 匹配）。
  */
 import { describe, expect, it } from "vitest";
-import { countOccurrencesBefore, insertAnchorWindow } from "@/utils/match";
+import { countOccurrencesBefore, insertAnchorWindow, surroundingAnchorWindow } from "@/utils/match";
 import { diffEngine } from "@/services/diff/DiffEngine";
 import type { EditOperation } from "@/models/EditPlan";
 
@@ -104,6 +104,17 @@ function simulateApply(
     return { start, end };
   };
 
+  /** oldText 全在公式内时，改由外侧普通文字夹出待替换区间。 */
+  const locateBySurroundingText = (op: EditOperation): { start: number; end: number } | null => {
+    const { preceding, following } = surroundingAnchorWindow(original, op, ops, ANCHOR_LENGTH);
+    if (!preceding || !following) return null;
+    const start = insertAnchorPos(preceding, "after", op.start);
+    const end = insertAnchorPos(following, "before", op.end);
+    return start >= 0 && end >= start && text.slice(start, end) === op.oldText
+      ? { start, end }
+      : null;
+  };
+
   /** 镜像 PatchEngine.pickInsertAnchor：锚点窗口减半收缩，插入位置不变 */
   const insertAnchorPos = (window: string, location: "before" | "after", insertAt: number): number => {
     let len = window.length;
@@ -126,7 +137,7 @@ function simulateApply(
       let from = searchAt(oldText, occurrence);
       let to = from >= 0 ? from + oldText.length : -1;
       if (from < 0) {
-        const ends = locateByEnds(op);
+        const ends = locateByEnds(op) ?? locateBySurroundingText(op);
         if (ends) {
           from = ends.start;
           to = ends.end;
@@ -293,5 +304,22 @@ describe("公式（OMML math zone）场景 —— 2026-09-17 真实失败回归"
     const { final, skipped } = simulateApply(PATENT_ORIGINAL, PATENT_OPS, []);
     expect(skipped).toEqual([]);
     expect(final).toBe(PATENT_NEW);
+  });
+});
+
+describe("公式内容全段不可搜索 —— 2026-09-29 真实失败回归", () => {
+  const original = "若第i个相机在BIM坐标系中的旋转为R_i、位置为C_i，则BIM坐标系中的观测方向,𝑑-𝑖.=,𝑅-𝑖.,𝑑-𝑐.，观测射线L_i=C_i+α_i d_i，其中α_i>0，α_i为第i条观测射线的射线参数（即由相机中心C_i沿观测方向d_i到目标点的距离，也称深度，单位与BIM坐标系一致），d_i为由单位方向d_c经旋转得到的方向向量。该射线把二维目标方向转换为建筑空间中的几何约束。";
+  const updated = "若第 $i$ 个相机在BIM坐标系中的旋转为 $R_i$、位置为 $C_i$，则BIM坐标系中的观测方向 $d_i = R_i d_c$，观测射线 $L_i = C_i + \\alpha_i d_i$，其中 $\\alpha_i > 0$，$\\alpha_i$ 为第 $i$ 条观测射线的射线参数（即由相机中心 $C_i$ 沿观测方向 $d_i$ 到目标点的距离，也称深度，单位与BIM坐标系一致），$d_i$ 为由单位方向 $d_c$ 经旋转得到的方向向量。该射线把二维目标方向转换为建筑空间中的几何约束。";
+
+  it("两侧文字夹住无法搜索的公式，18 处修改全部应用", () => {
+    const ops = diffEngine.computeEditOperations(original, updated);
+    const mathStart = original.indexOf(",𝑑-𝑖.");
+    const mathEnd = original.indexOf("，观测射线", mathStart);
+    const mathZones = [{ start: mathStart, end: mathEnd }];
+    expect(ops).toHaveLength(18);
+    expect(searchableMatches(original, original.slice(mathStart, mathEnd), mathZones)).toEqual([]);
+    const { final, skipped } = simulateApply(original, ops, mathZones);
+    expect(skipped).toEqual([]);
+    expect(final).toBe(updated);
   });
 });

@@ -5,6 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { insertEngine } from "@/services/word/InsertEngine";
+import { patchEngine } from "@/services/word/PatchEngine";
 import { useEditStore } from "@/stores/edits";
 
 vi.mock("@/services/word/InsertEngine", async (importOriginal) => {
@@ -133,6 +134,31 @@ describe("公式与段落修订事务", () => {
     expect(store.pendingList).toHaveLength(1);
     finish(outcome);
     expect(await applying).toEqual({ ok: true });
+  });
+
+  it("修改既有段落的 $LaTeX$ 走原生公式替换管线", async () => {
+    const rich = vi.spyOn(patchEngine, "applyRichEditPlan").mockResolvedValue(outcome);
+    const plain = vi.spyOn(patchEngine, "applyEditPlan").mockResolvedValue(outcome);
+    try {
+      const store = useEditStore();
+      const result = await store.applyProposal(
+        "把符号改为公式",
+        {
+          kind: "text",
+          paragraph_id: "p1",
+          original_text: "观测方向d_i。",
+          new_text: "观测方向$d_i$。",
+          summary: "转换行内公式",
+        },
+        [{ id: "p1", text: "观测方向d_i。", style: "正文", level: null }],
+      );
+      expect(result).toEqual({ ok: true });
+      expect(rich).toHaveBeenCalledOnce();
+      expect(plain).not.toHaveBeenCalled();
+    } finally {
+      rich.mockRestore();
+      plain.mockRestore();
+    }
   });
 
   it("Word 标题使用独立修订事务并保存级别", async () => {

@@ -64,3 +64,22 @@ export function insertAnchorWindow(
     .pop() ?? "";
   return { following, preceding };
 }
+
+/** 为不可搜索的替换区间找两侧仍未改动的普通文字。 */
+export function surroundingAnchorWindow(
+  original: string,
+  op: EditOperation,
+  allOps: readonly EditOperation[],
+  anchorLength: number,
+): { preceding: string; following: string } {
+  let nextBoundary = original.length;
+  for (const other of allOps) {
+    if (other !== op && other.start >= op.end && other.start < nextBoundary) {
+      nextBoundary = other.start;
+    }
+  }
+  return {
+    preceding: original.slice(Math.max(0, op.start - anchorLength), op.start).split("\n").pop() ?? "",
+    following: original.slice(op.end, Math.min(op.end + anchorLength, nextBoundary)).split("\n")[0],
+  };
+}

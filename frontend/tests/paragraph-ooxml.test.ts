@@ -54,6 +54,13 @@ describe("paragraphsToOoxml", () => {
     expect(ooxml).not.toContain("$E=mc^2$");
   });
 
+  it("模型重复转义的 LaTeX 命令仍生成原生公式，不留下美元符号", () => {
+    const ooxml = paragraphsToOoxml(["观测方向 $d_i=R_i d_c$，射线 $L_i=C_i+\\\\alpha_i d_i$。"]);
+    expect(ooxml.match(/<m:oMath(?:\s|>)/g)).toHaveLength(2);
+    expect(ooxml).not.toContain("$");
+    expect(ooxml).not.toContain("alpha_i");
+  });
+
   it("文字中的非法公式在写入 Word 前失败", () => {
     expect(() => paragraphsToOoxml(["公式 $\\frac{$ 无效"])).toThrow();
   });

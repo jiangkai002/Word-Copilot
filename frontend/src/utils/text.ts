@@ -43,14 +43,22 @@ export function toWordText(text: string): string {
  * “接受全部修订后”文本的比对（PatchEngine 校验用）。
  *
  * Range.getReviewedText 与 Range.text 对结构标记的渲染不一致：
- * 部分宿主的 getReviewedText 会包含控件 / 表格单元格等结构标记字符
- * （实测 Word 桌面版会在控件内容前附加字面 '<'），而 Range.text 不包含。
- * 若期望文本本身不含标记字符，则剥离两侧标记字符后再比较，
- * 避免把正确应用误判为失败而回滚。
+ * 部分宿主的 getReviewedText 会在控件内容前附加 '<' 等结构标记，
+ * 并把原生公式中的字母转为 Unicode 数学字母。只清理范围边界的标记，
+ * 保留正文中的比较符，再折叠数学字母后比较。
  */
 export function reviewedTextEquals(final: string, expected: string): boolean {
   if (final === expected) return true;
-  if (/[<>]/.test(expected)) return false; // 期望文本含 '<'/'>' 时不容忍（防掩盖真实差异）
-  const stripMarks = (s: string): string => s.replace(/[<>\x07]/g, "");
-  return stripMarks(final) === stripMarks(expected);
+  // 宿主添加的结构标记仅出现在范围边界；正文中的 <、>（如 α_i > 0）必须保留。
+  const stripMarks = (s: string): string => {
+    let result = s.replace(/\x07+$/, "");
+    if (!expected.startsWith("<")) result = result.replace(/^<+/, "");
+    if (!expected.endsWith(">")) result = result.replace(/>+$/, "");
+    return result;
+  };
+  // Word 会把原生公式内的 ASCII 字母/数字转成 Unicode 数学字母，
+  // 例如 d_i → 𝑑_𝑖。只折叠数学字母区，避免 NFKC 改写正文中的其他字符。
+  const normalizeMathLetters = (s: string): string =>
+    s.replace(/[\u{1D400}-\u{1D7FF}]/gu, (char) => char.normalize("NFKC"));
+  return normalizeMathLetters(stripMarks(final)) === normalizeMathLetters(expected);
 }

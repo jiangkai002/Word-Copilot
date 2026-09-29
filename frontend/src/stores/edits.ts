@@ -36,7 +36,7 @@ import { editApi } from "@/services/api/EditApi";
 import { proposalToCapturedTarget } from "@/services/agent/ProposalMapper";
 import { diffEngine } from "@/services/diff/DiffEngine";
 import { formatEngine } from "@/services/word/FormatEngine";
-import { headingToOoxml, insertEngine, paragraphsToOoxml } from "@/services/word/InsertEngine";
+import { containsInlineFormula, headingToOoxml, insertEngine, paragraphsToOoxml } from "@/services/word/InsertEngine";
 import { latexToOoxml } from "@/services/word/FormulaOoxml";
 import { patchEngine, type PatchOutcome } from "@/services/word/PatchEngine";
 import { revisionService } from "@/services/word/RevisionService";
@@ -276,7 +276,9 @@ export const useEditStore = defineStore("edits", () => {
       operations,
       summary: edit.summary,
     };
-    const outcome = await patchEngine.applyEditPlan(plan);
+    const outcome = target.kind === "paragraph" && containsInlineFormula([plan.newText])
+      ? await patchEngine.applyRichEditPlan(plan)
+      : await patchEngine.applyEditPlan(plan);
 
     const tx: EditTransaction = {
       id: plan.id,
